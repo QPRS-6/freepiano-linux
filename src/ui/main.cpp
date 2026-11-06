@@ -7,6 +7,8 @@
 #include <QSpinBox>
 #include <QMouseEvent>
 #include <QSlider>
+#include <QStyle>
+#include <QStyleOptionSpinBox>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QTabWidget>
@@ -763,7 +765,7 @@ int main(int argc, char** argv) {
     if (!speed_ok) ++failures;
 
     bool key_ok = key_spin && key_spin->minimum() == -4 && key_spin->maximum() == 7 &&
-                  key_spin->text() == "C(0)";
+                  key_spin->text() == "C(0)" && !key_spin->isReadOnly();
     if (key_ok) {
       key_spin->setValue(-1);
       key_ok = key_spin->text() == "B(-1)";
@@ -777,8 +779,35 @@ int main(int argc, char** argv) {
       key_ok = key_ok && key_spin->text() == "C(7)";
       key_spin->setValue(0);
     }
+    bool key_arrow_ok = false;
+    if (key_spin) {
+      key_spin->setValue(0);
+      QStyleOptionSpinBox option;
+      option.initFrom(key_spin);
+      option.buttonSymbols = key_spin->buttonSymbols();
+      option.frame = key_spin->hasFrame();
+      option.stepEnabled = QAbstractSpinBox::StepUpEnabled | QAbstractSpinBox::StepDownEnabled;
+      option.activeSubControls = QStyle::SC_None;
+      QRect up_rect = key_spin->style()->subControlRect(
+          QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, key_spin);
+      QPoint arrow_pos = up_rect.center();
+      QPointF arrow_local(arrow_pos);
+      QPointF arrow_global(key_spin->mapToGlobal(arrow_pos));
+      QMouseEvent arrow_press(QEvent::MouseButtonPress, arrow_local, arrow_global,
+                              Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+      QApplication::sendEvent(key_spin, &arrow_press);
+      QApplication::processEvents();
+      QMouseEvent arrow_release(QEvent::MouseButtonRelease, arrow_local, arrow_global,
+                                Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+      QApplication::sendEvent(key_spin, &arrow_release);
+      QApplication::processEvents();
+      key_arrow_ok = key_spin->value() == 1;
+      key_spin->setValue(0);
+    }
     std::printf("  [%s] key labels show B(-1)..C(7)\n", key_ok ? "ok" : "FAIL");
     if (!key_ok) ++failures;
+    std::printf("  [%s] key spin arrows are enabled\n", key_arrow_ok ? "ok" : "FAIL");
+    if (!key_arrow_ok) ++failures;
 
     bool octave_ok = octave0 && octave1 && octave0->minimum() == -3 &&
                      octave0->maximum() == 3 && octave0->text() == "0" &&

@@ -26,6 +26,7 @@
 #include <QIcon>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -74,7 +75,11 @@ QString key_label(int value) {
 
 class KeySpinBox : public QSpinBox {
  public:
-  explicit KeySpinBox(QWidget* parent) : QSpinBox(parent) {}
+  explicit KeySpinBox(QWidget* parent) : QSpinBox(parent) {
+    // Keep the custom "C(0)" text read-only, but leave the step buttons
+    // enabled: QAbstractSpinBox::setReadOnly(true) also disables them.
+    lineEdit()->setReadOnly(true);
+  }
 
  protected:
   QString textFromValue(int value) const override { return key_label(value); }
@@ -158,7 +163,6 @@ void MainWindow::buildControls() {
   key_sign_spin_->setRange(-4, 7);
   key_sign_spin_->setFixedWidth(70);
   key_sign_spin_->setAlignment(Qt::AlignCenter);
-  key_sign_spin_->setReadOnly(true);
   key_sign_spin_->setFocusPolicy(Qt::NoFocus);
   key_sign_spin_->setToolTip(fp_tr("曲调：音名 + 度数", "Key: note name + degree"));
   connect(key_sign_spin_, SIGNAL(valueChanged(int)), this, SLOT(onKeySignatureChanged(int)));
