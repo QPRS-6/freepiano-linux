@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(freepiano-linux VERSION 1.0.4 LANGUAGES CXX)
+project(freepiano-linux VERSION 1.0.5 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 
@@ -19,6 +19,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 option(FP_WITH_FLUIDSYNTH "Build optional FluidSynth (SoundFont) backend" ON)
 option(FP_WITH_MIDI "Build optional ALSA sequencer MIDI backend" ON)
+option(FP_EMBED_SOURCE_DATA_DIR "Embed the absolute source assets path (development builds)" ON)
 
 find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets)
 find_package(ZLIB REQUIRED)
@@ -86,9 +87,12 @@ endif()
 
 # Where the source tree keeps its runtime data (used when running from a build dir)
 target_compile_definitions(freepiano PRIVATE
-  FP_SOURCE_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
   FP_INSTALL_DATA_DIR="${CMAKE_INSTALL_FULL_DATADIR}/freepiano"
   FP_VERSION_STRING="${PROJECT_VERSION}")
+if(FP_EMBED_SOURCE_DATA_DIR)
+  target_compile_definitions(freepiano PRIVATE
+    FP_SOURCE_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+endif()
 
 install(TARGETS freepiano RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY assets/ DESTINATION ${CMAKE_INSTALL_DATADIR}/freepiano
