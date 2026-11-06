@@ -806,6 +806,25 @@ int main(int argc, char** argv) {
     }
     std::printf("  [%s] key labels show B(-1)..C(7)\n", key_ok ? "ok" : "FAIL");
     if (!key_ok) ++failures;
+
+    config_set_keymap("freepiano.map");
+    config_set_key_signature(0);
+    config_set_key_signature(0);
+    auto tap_key = [](uint8_t code) {
+      song_send_event(SM_SYSTEM, SMS_KEY_EVENT, code, 1, false);
+      song_send_event(SM_SYSTEM, SMS_KEY_EVENT, code, 0, false);
+    };
+    for (int i = 0; i < 12; ++i) tap_key(DIK_F3);
+    bool key_f3_ok = config_get_key_signature() == 7;
+    config_set_key_signature(0);
+    for (int i = 0; i < 12; ++i) tap_key(DIK_F4);
+    bool key_f4_ok = config_get_key_signature() == -4;
+
+    config_set_key_signature(0);
+    window.syncControls();
+    std::printf("  [%s] F3/F4 adjust key signature -4..7\n",
+                (key_f3_ok && key_f4_ok) ? "ok" : "FAIL");
+    if (!(key_f3_ok && key_f4_ok)) ++failures;
     std::printf("  [%s] key spin arrows are enabled\n", key_arrow_ok ? "ok" : "FAIL");
     if (!key_arrow_ok) ++failures;
 

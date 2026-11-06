@@ -348,7 +348,7 @@ void song_output_event(byte a, byte b, byte c, byte d) {
       }
       if ((op & 0x0f) == SM_VALUE_PRESS) delay_event_add(fixed_delay_timer, a, SM_VALUE_SET, (byte)value, 0);
       value = translate_value(op, value, change);
-      value = wrap_value(value, -3, 3);
+      value = clamp_value(value, -4, 7);
       config_set_key_signature((char)value);
       break;
     }
