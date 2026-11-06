@@ -173,6 +173,20 @@ PulseAudio，请选择 “PulseAudio / PipeWire (default)”。默认的 mdaPian
 * UI 测试覆盖鼠标点击演奏、右键改键信号、延音按钮、改键对话框重绑定，以及延音键的
   「按住」和「切换」两种模式。
 
+## AUR
+
+`packaging/aur/` 中已经准备好 AUR 包（`PKGBUILD` + `.SRCINFO`，包名 `freepiano-linux`，
+版本 1.0.5），并已用 `makepkg` 本地构建验证。提交到 AUR 后可以：
+
+```bash
+yay -S freepiano-linux
+# 或
+paru -S freepiano-linux
+```
+
+首次提交需要 AUR 账号和 SSH key，详细步骤见
+[packaging/aur/README.md](packaging/aur/README.md)。
+
 ## 开发
 
 ```
