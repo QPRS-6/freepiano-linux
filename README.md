@@ -183,7 +183,7 @@ PulseAudio，请选择 “PulseAudio / PipeWire (default)”。默认的 mdaPian
 ## AUR
 
 `packaging/aur/` 中已经准备好 AUR 包（`PKGBUILD` + `.SRCINFO`，包名 `freepiano-linux`，
-版本 1.0.5），并已用 `makepkg` 本地构建验证。提交到 AUR 后可以：
+版本 1.0.6），并已用 `makepkg` 本地构建验证。提交到 AUR 后可以：
 
 ```bash
 yay -S freepiano-linux
@@ -200,7 +200,7 @@ GitHub Releases 也提供构建好的 pacman 包（已包含 `.desktop`、图标
 
 ```bash
 # 从 https://github.com/QPRS-6/freepiano-linux/releases 下载后
-sudo pacman -U freepiano-linux-1.0.5-1-x86_64.pkg.tar.zst
+sudo pacman -U freepiano-linux-1.0.6-1-x86_64.pkg.tar.zst
 ```
 
 该包未做 GPG 签名，`pacman -U` 可能会提示确认；也可以直接用上面的 AUR 方式本地编译。

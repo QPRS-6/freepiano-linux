@@ -1,6 +1,6 @@
 # Maintainer: QPRS-6 <qprsyyds@gmail.com>
 pkgname=freepiano-linux
-pkgver=1.0.5
+pkgver=1.0.6
 pkgrel=1
 pkgdesc="Native Linux port of FreePiano 1.8 with the built-in mdaPiano instrument"
 arch=('x86_64')
@@ -9,7 +9,7 @@ license=('BSD-3-Clause' 'MIT')
 depends=('qt6-base' 'qt6-wayland' 'portaudio' 'alsa-lib' 'zlib' 'fluidsynth' 'libpulse' 'hicolor-icon-theme')
 makedepends=('cmake' 'ninja' 'pkgconf')
 source=("$pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/$pkgname-$pkgver.tar.gz")
-sha256sums=('a39b6099ca257ed2d7a6846919c8aaf37d20585ec8a4ed486e9391bfd0ed7758')
+sha256sums=('7b6c43fa23cdfce0ad4f023049f595b65d72bb8f3019ac2a5ef9c48f7f7abe21')
 
 build() {
   cmake -S "$pkgname-$pkgver" -B build \
