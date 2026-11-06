@@ -6,3 +6,7 @@ ref/
 *.user
 *.tar.gz
 .mig/
+.aur-test/
+packaging/aur/src/
+packaging/aur/pkg/
+packaging/aur/*.pkg.tar.zst

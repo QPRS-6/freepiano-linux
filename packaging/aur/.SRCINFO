@@ -10,6 +10,7 @@ pkgbase = freepiano-linux
 	makedepends = ninja
 	makedepends = pkgconf
 	depends = qt6-base
+	depends = qt6-wayland
 	depends = portaudio
 	depends = alsa-lib
 	depends = zlib
