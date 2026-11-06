@@ -8,6 +8,7 @@
 #include "core/midi.h"
 #include "core/song.h"
 #include "keyboardwidget.h"
+#include "keyeditdialog.h"
 #include "keymapeditordialog.h"
 #include "lang.h"
 #include "pianowidget.h"
@@ -180,10 +181,16 @@ void MainWindow::buildControls() {
 
   bar->addStretch(1);
 
-  sustain_label_ = new QLabel("SUS", central);
-  sustain_label_->setStyleSheet("color:#6a6a72;font-weight:bold;");
-  sustain_label_->setToolTip(fp_tr("延音踏板", "Sustain pedal"));
-  bar->addWidget(sustain_label_);
+  sustain_button_ = new QPushButton(fp_tr("延音", "SUS"), central);
+  sustain_button_->setObjectName("sustainButton");
+  sustain_button_->setCheckable(true);
+  sustain_button_->setFixedSize(56, 30);
+  sustain_button_->setFocusPolicy(Qt::NoFocus);
+  sustain_button_->setToolTip(fp_tr("延音踏板开关（会录入到乐曲）", "Sustain pedal toggle (recorded)"));
+  sustain_button_->setStyleSheet(
+      "QPushButton:checked{background:#ff9d2e;color:#3a2000;font-weight:bold;}");
+  connect(sustain_button_, &QPushButton::toggled, this, &MainWindow::onSustainToggled);
+  bar->addWidget(sustain_button_);
 
   instrument_label_ = new QLabel(central);
   instrument_label_->setStyleSheet("color:#9a9aa2;");
@@ -201,6 +208,7 @@ void MainWindow::buildControls() {
 
   connect(piano_, &PianoWidget::notePressed, this, &MainWindow::onPianoPressed);
   connect(piano_, &PianoWidget::noteReleased, this, &MainWindow::onPianoReleased);
+  connect(keyboard_, &KeyboardWidget::editKeyRequested, this, &MainWindow::onEditKey);
 
   setCentralWidget(central);
 
@@ -289,7 +297,8 @@ void MainWindow::buildMenus() {
             "<b>用电脑键盘演奏</b><br>"
             "窗口获得焦点后直接按键即可演奏，屏幕上的键盘会同步高亮。<br>"
             "F5/F6、F9/F10 等按键在默认键位中用来切换八度和力度。<br><br>"
-            "<b>鼠标</b><br>点击下方钢琴键盘也可以演奏，并会录入到乐曲中。<br><br>"
+            "<b>鼠标</b><br>左键点击上方屏幕键盘或下方钢琴可以演奏；"
+            "右键点击上方屏幕键盘可修改该键的功能（音符/通道/八度/延音等）。<br><br>"
             "<b>乐曲</b><br>● 开始/结束录制，▶ 播放，■ 停止。乐曲保存为 FreePiano 的 .fpm 格式，"
             "可与 Windows 版互相打开。<br><br>"
             "<b>键位文件</b><br>菜单「键位」可以载入 FreePiano 的 .map 键位文件，"
@@ -297,7 +306,8 @@ void MainWindow::buildMenus() {
             "<b>Play with your computer keyboard</b><br>"
             "When the window has focus, simply type. The on-screen keyboard highlights in sync.<br>"
             "F5/F6, F9/F10 etc. change octave and velocity in the default map.<br><br>"
-            "<b>Mouse</b><br>You can also click the piano keyboard below; those notes are recorded too.<br><br>"
+            "<b>Mouse</b><br>Left-click the on-screen computer keyboard or the piano below to play; "
+            "right-click a computer-keyboard key to change its function.<br><br>"
             "<b>Songs</b><br>● starts/stops recording, ▶ plays, ■ stops. Songs are stored as FreePiano .fpm files "
             "and are interchangeable with the Windows version.<br><br>"
             "<b>Key maps</b><br>The Key map menu loads original FreePiano .map files, and the editor lets you "
@@ -377,6 +387,11 @@ void MainWindow::syncControls() {
   volume_slider_->setValue(config_get_output_volume());
 
   instrument_label_->setText(QString::fromStdString(engine_instrument_name()));
+
+  bool sustain =
+      config_get_controller((uint8_t)(SM_OUTPUT_0 + config_get_output_channel(0)), 64) >= 64;
+  QSignalBlocker sustain_block(sustain_button_);
+  sustain_button_->setChecked(sustain);
 }
 
 void MainWindow::tick() {
@@ -407,7 +422,10 @@ void MainWindow::tick() {
   }
 
   bool sustain = config_get_controller((uint8_t)(SM_OUTPUT_0 + config_get_output_channel(0)), 64) >= 64;
-  sustain_label_->setStyleSheet(sustain ? "color:#ff9d2e;font-weight:bold;" : "color:#6a6a72;font-weight:bold;");
+  if (sustain_button_ && sustain_button_->isChecked() != sustain) {
+    QSignalBlocker block(sustain_button_);
+    sustain_button_->setChecked(sustain);
+  }
 
   double timer = song_get_timer();
   if (!song_is_playing() && !song_is_recording()) timer = 0;
@@ -727,6 +745,25 @@ void MainWindow::onPianoPressed(int note) {
 
 void MainWindow::onPianoReleased(int note) {
   song_send_event(SM_NOTE_OFF, 0, (byte)note, 0, true);
+}
+
+void MainWindow::onSustainToggled(bool on) {
+  // Sustain belongs to the current input channel's output channel (In_0);
+  // this matches the "Sustain In_0 127" scripts used by the key maps.
+  song_send_event(SM_SUSTAIN, 0, SM_VALUE_SET, on ? 127 : 0, true);
+  keyboard_->update();
+  setFocus();
+}
+
+void MainWindow::onEditKey(uint8_t code, const QPoint& /*global_position*/) {
+  KeyEditDialog dialog(code, this);
+  if (dialog.exec() == QDialog::Accepted) {
+    keyboard_->update();
+    statusBar()->showMessage(
+        fp_tr("已更新按键: ", "Key updated: ") + QString::fromLatin1(config_get_key_name(code)),
+        3000);
+  }
+  setFocus();
 }
 
 void MainWindow::updateStatusBar() {

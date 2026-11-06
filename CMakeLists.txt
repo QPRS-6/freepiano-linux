@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(freepiano-linux VERSION 1.0.2 LANGUAGES CXX)
+project(freepiano-linux VERSION 1.0.3 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 
@@ -61,6 +61,7 @@ set(FP_UI_SOURCES
   src/ui/qtkeymap.cpp
   src/ui/settingsdialog.cpp
   src/ui/keymapeditordialog.cpp
+  src/ui/keyeditdialog.cpp
   src/ui/aboutdialog.cpp
 )
 

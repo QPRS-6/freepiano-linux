@@ -110,6 +110,17 @@ MIT（或 GPL）许可发布，Linux 上无需 VST 宿主即可使用：
 
 ## 平台相关替换
 
+### 界面交互
+
+* `KeyboardWidget` 保存缩放后的键位矩形，`key_at()` 做命中测试：
+  * 左键按下发送 `SM_SYSTEM / SMS_KEY_EVENT`，与物理键盘完全同一条事件链（录音、自动 note-off、
+    分组/曲调脚本都生效）；按住拖动时先释放旧键再按新键，可滑奏；
+  * 右键发出 `editKeyRequested`，由 `KeyEditDialog` 修改当前分组中该键的绑定。
+* `KeyEditDialog` 用表单覆盖常用脚本动作（音符、通道、八度、移调、延音、播放/录制等），
+  写入 `config_bind_add_keydown()`；支持“跟随分组力度”（velocity=0）和自定义键帽文字。
+* 工具栏「延音」是 checkable 按钮：切换时发送 `SM_SUSTAIN`（可录制），每帧从 CC64 状态同步，
+  因此脚本/回放改变延音时按钮也会跟着变。
+
 ### 音频
 
 ```

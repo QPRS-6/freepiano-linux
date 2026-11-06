@@ -12,6 +12,10 @@
 ## 功能
 
 * **键盘演奏**：屏幕上的 PC 键盘实时显示音符/功能标签，按下时高亮；下方 88 键钢琴同步显示。
+* **鼠标演奏**：左键点击上方屏幕键盘或下方钢琴即可发声，按住拖动可滑奏；鼠标按键同样会录入乐曲。
+* **右键改键**：右键点击屏幕键盘上的任意键，可直接修改该键在当前分组中的功能（音符、通道、八度、
+  移调、延音、播放/录制等），无需手写 `.map`。
+* **延音按钮**：工具栏「延音」一键切换延音踏板（CC64），状态跟随键位脚本/回放同步，并会录入乐曲。
 * **原版键位兼容**：直接加载 FreePiano 的 `.map` 键位文件（含 `NoteOn / Octave / Velocity /
   Transpose / KeySignature / Group / Sustain / 中文指令` 等），自带 `freepiano.map`、
   `flashpiano.map`、`idreampiano.map`、`default.map`。
@@ -23,16 +27,16 @@
   * 可选 FluidSynth + SoundFont（`.sf2` / `.sf3`），使用其它 GM 音色库。
 * **音频输出**：PortAudio（ALSA/JACK）+ PulseAudio / PipeWire 后端，自动回退。
 * **MIDI**：ALSA sequencer MIDI 输入（外部 MIDI 键盘，支持通道映射）与 MIDI 输出。
-* **录制 / 播放 / 导出 WAV**：录制键位事件，保存为 `.fpm`；可离线渲染导出 16-bit WAV。
+* **录制 / 播放 / 导出 WAV**：录制键位/延音事件，保存为 `.fpm`；可离线渲染导出 16-bit WAV。
 * **多分组、移调、跟随曲调、延音、力度、八度**：与原版脚本语义一致。
 * **键位编辑器**：以纯文本方式编辑 `.map`，实时应用、另存。
 * 中/英文界面（按 `LANG` 自动选择，可在设置中切换）。
 
 ## 截图
 
-| 设置 | 键位编辑器 |
-| --- | --- |
-| ![设置](docs/screenshot-settings.png) | ![键位编辑器](docs/screenshot-keymap.png) |
+| 设置 | 键位编辑器 | 右键修改按键 |
+| --- | --- | --- |
+| ![设置](docs/screenshot-settings.png) | ![键位编辑器](docs/screenshot-keymap.png) | ![修改按键](docs/screenshot-keyedit.png) |
 
 ## 构建
 
@@ -78,7 +82,10 @@ sudo cmake --install build          # 默认前缀 /usr/local
 
 * 启动后**窗口获得焦点**即可用键盘演奏（默认键位下 `Z X C V…` 为低音区，`A S D F…` 为中音区，
   `Q W E…` 和数字行为高音区；`F1/F2` 切换分组，`F3/F4` 曲调，`F5-F12` 八度/力度）。
-* 点击下方钢琴也可以演奏，鼠标按下的音会录入乐曲。
+* 左键点击上方屏幕键盘或下方钢琴都可以演奏（可按住拖动滑奏），鼠标按下的音会录入乐曲。
+* 右键点击上方屏幕键盘的某个键，可修改该键在当前分组中的功能；「清除此键」可解除绑定。
+* 工具栏「延音」按钮切换延音踏板（作用于 `In_0` 对应的输出通道，即默认键位），按钮状态会跟随
+  键位脚本/乐曲回放更新；开启时会录入乐曲。
 * `●` 录制、`▶` 播放、`■` 停止；`Ctrl+O / Ctrl+S` 打开/保存 `.fpm`，`Ctrl+E` 导出 WAV。
 * 「键位」菜单可切换/编辑 `.map`；「乐器」菜单切换 mdaPiano / GM 合成器 / SoundFont，
   并可选择 mdaPiano 的 8 个预设。
@@ -127,6 +134,10 @@ sudo pacman -S soundfont-fluid        # FluidR3_GM
 PulseAudio，请选择 “PulseAudio / PipeWire (default)”。默认的 mdaPiano 是内置的，
 不需要额外音色文件。
 
+**Q：启动后没有窗口，或命令一直不返回？** 本移植在 Wayland 会话会优先使用 Wayland 平台；
+如果是纯 X11/远程桌面，可显式指定：`QT_QPA_PLATFORM=xcb ./build/bin/freepiano`。
+`--version` / `--help` 不依赖显示服务器，可在无显示环境直接运行。
+
 **Q：如何在后台/其他窗口演奏？** Linux（尤其 Wayland）不允许全局抓键，本移植只在窗口聚焦时
 接收键盘；这是与 Windows 低级键盘钩子的主要行为差异。
 
@@ -157,7 +168,8 @@ PulseAudio，请选择 “PulseAudio / PipeWire (default)”。默认的 mdaPian
 * 12/12 `.fpm` 全部可打开、解析并正常播放；
 * 键盘扫描码回归用例（X11 `evdev+8` 与原始 evdev 两种口径）全部通过；
 * 4/4 `.map` 全部可加载（含 `flashpiano.map`、`idreampiano.map`）；
-* 自测全部通过，WAV 导出非静音（mdaPiano、内置合成器与 FluidSynth 均验证）。
+* 自测全部通过，WAV 导出非静音（mdaPiano、内置合成器与 FluidSynth 均验证）；
+* UI 测试覆盖鼠标点击演奏、右键改键信号、延音按钮和改键对话框的实际重绑定。
 
 ## 开发
 

@@ -2,10 +2,16 @@
 #include <QFile>
 #include <QIcon>
 #include <QKeyEvent>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QSpinBox>
+#include <QMouseEvent>
+#include <QPushButton>
 #include <QTabWidget>
 #include <QTimer>
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -21,6 +27,8 @@
 #include "core/midi.h"
 #include "core/song.h"
 #include "mainwindow.h"
+#include "keyboardwidget.h"
+#include "keyeditdialog.h"
 #include "settingsdialog.h"
 #include "keymapeditordialog.h"
 #include "aboutdialog.h"
@@ -272,7 +280,47 @@ int run_map_tests(const std::string& dir) {
 
 }
 
+void print_usage() {
+  std::printf(
+      "FreePiano Linux %s\n\n"
+      "Usage: freepiano [options] [song.fpm | map.map]\n\n"
+      "  --no-audio              start without opening an audio device\n"
+      "  --selftest              run engine/file-format self tests\n"
+      "  --test-ui               run Qt key-event tests\n"
+      "  --test-maps <dir>       load every .map in a directory\n"
+      "  --test-songs <dir>      open/play every .fpm in a directory\n"
+      "  --screenshot <file>     render the main window and exit\n"
+      "  --demo                  press a few keys before the screenshot\n"
+      "  --version               print the version\n"
+      "  --help                  show this help\n",
+      FP_VERSION_STRING);
+}
+
+// Qt defaults to XCB on many Linux setups even inside a Wayland session.
+// When the session is Wayland and the user did not choose a platform, use
+// Wayland so a stale/missing XWayland socket cannot block startup.
+void prefer_wayland_platform() {
+  if (std::getenv("QT_QPA_PLATFORM")) return;
+  if (!std::getenv("WAYLAND_DISPLAY") || !*std::getenv("WAYLAND_DISPLAY")) return;
+  const char* session = std::getenv("XDG_SESSION_TYPE");
+  if (!session || std::strcmp(session, "wayland") != 0) return;
+  setenv("QT_QPA_PLATFORM", "wayland", 1);
+}
+
 int main(int argc, char** argv) {
+  // Help/version must not require a display (or block on a dead X server).
+  for (int i = 1; i < argc; ++i) {
+    if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0) {
+      print_usage();
+      return 0;
+    }
+    if (std::strcmp(argv[i], "--version") == 0) {
+      std::printf("FreePiano Linux %s\n", FP_VERSION_STRING);
+      return 0;
+    }
+  }
+
+  prefer_wayland_platform();
   QApplication app(argc, argv);
   app.setApplicationName("FreePiano Linux");
   app.setApplicationVersion(FP_VERSION_STRING);
@@ -280,26 +328,6 @@ int main(int argc, char** argv) {
 
   const QStringList args = app.arguments();
 
-  if (args.contains("--help") || args.contains("-h")) {
-    std::printf(
-        "FreePiano Linux %s\n\n"
-        "Usage: freepiano [options] [song.fpm | map.map]\n\n"
-        "  --no-audio              start without opening an audio device\n"
-        "  --selftest              run engine/file-format self tests\n"
-        "  --test-ui               run Qt key-event tests\n"
-        "  --test-maps <dir>       load every .map in a directory\n"
-        "  --test-songs <dir>      open/play every .fpm in a directory\n"
-        "  --screenshot <file>     render the main window and exit\n"
-        "  --demo                  press a few keys before the screenshot\n"
-        "  --version               print the version\n"
-        "  --help                  show this help\n",
-        FP_VERSION_STRING);
-    return 0;
-  }
-  if (args.contains("--version")) {
-    std::printf("FreePiano Linux %s\n", FP_VERSION_STRING);
-    return 0;
-  }
 
   const bool no_audio = args.contains("--no-audio");
   const bool selftest = args.contains("--selftest");
@@ -398,7 +426,111 @@ int main(int argc, char** argv) {
 
     send_scan(QEvent::KeyPress, Qt::Key_F4, 70, "");
     send_scan(QEvent::KeyRelease, Qt::Key_F4, 70, "");
+    send_scan(QEvent::KeyPress, Qt::Key_F3, 69, "");  // restore key signature
+    send_scan(QEvent::KeyRelease, Qt::Key_F3, 69, "");
     std::printf("  [ok] scan code F4 does not trigger ScrollLock\n");
+
+    // Mouse: left-click on the on-screen computer keyboard plays the key,
+    // right-click emits an edit request for that key.
+    auto* keyboard = window.findChild<KeyboardWidget*>();
+    bool mouse_ok = false;
+    bool right_click_ok = false;
+    if (keyboard) {
+      QRectF rect = keyboard->keyRect(DIK_C);
+      if (rect.isValid()) {
+        QPointF local = rect.center();
+        QPointF global = keyboard->mapToGlobal(local.toPoint());
+
+        QMouseEvent press(QEvent::MouseButtonPress, local, global, Qt::LeftButton,
+                          Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(keyboard, &press);
+        mouse_ok = midi_any_note_active(40);
+        QMouseEvent release(QEvent::MouseButtonRelease, local, global, Qt::LeftButton,
+                            Qt::NoButton, Qt::NoModifier);
+        QApplication::sendEvent(keyboard, &release);
+        mouse_ok = mouse_ok && !midi_any_note_active(40);
+
+        // Avoid opening the modal editor while testing the signal itself.
+        QObject::disconnect(keyboard, &KeyboardWidget::editKeyRequested, &window, nullptr);
+        uint8_t edit_code = 0;
+        auto connection = QObject::connect(keyboard, &KeyboardWidget::editKeyRequested,
+                                           [&edit_code](uint8_t code, const QPoint&) {
+                                             edit_code = code;
+                                           });
+        QMouseEvent right(QEvent::MouseButtonPress, local, global, Qt::RightButton,
+                          Qt::RightButton, Qt::NoModifier);
+        QApplication::sendEvent(keyboard, &right);
+        QObject::disconnect(connection);
+        right_click_ok = edit_code == DIK_C;
+      }
+    }
+    std::printf("  [%s] left-click on-screen keyboard plays a note\n", mouse_ok ? "ok" : "FAIL");
+    if (!mouse_ok) ++failures;
+    std::printf("  [%s] right-click requests key function edit\n", right_click_ok ? "ok" : "FAIL");
+    if (!right_click_ok) ++failures;
+
+    auto* sustain = window.findChild<QPushButton*>("sustainButton");
+    bool sustain_ok = false;
+    if (sustain) {
+      int out_ch = config_get_output_channel(0);
+      bool before = config_get_controller((uint8_t)(SM_OUTPUT_0 + out_ch), 64) >= 64;
+      sustain->click();
+      bool after = config_get_controller((uint8_t)(SM_OUTPUT_0 + out_ch), 64) >= 64;
+      sustain->click();
+      bool restored = config_get_controller((uint8_t)(SM_OUTPUT_0 + out_ch), 64) >= 64;
+      sustain_ok = (before != after) && (restored == before);
+    }
+    std::printf("  [%s] sustain button toggles CC64\n", sustain_ok ? "ok" : "FAIL");
+    if (!sustain_ok) ++failures;
+
+    // Key-function dialog: change V to C4 and verify the new binding is live.
+    {
+      key_bind_t orig_down[16];
+      key_bind_t orig_up[16];
+      int n_down = config_bind_get_keydown(DIK_V, orig_down, 16);
+      int n_up = config_bind_get_keyup(DIK_V, orig_up, 16);
+      std::string orig_label = config_bind_get_label(DIK_V);
+
+      bool dialog_ok = false;
+      {
+        KeyEditDialog dialog(DIK_V, &window);
+        dialog.show();
+        QApplication::processEvents();
+        auto* action = dialog.findChild<QComboBox*>("actionCombo");
+        auto* channel = dialog.findChild<QComboBox*>("channelCombo");
+        auto* note = dialog.findChild<QComboBox*>("noteCombo");
+        auto* velocity = dialog.findChild<QSpinBox*>("velocitySpin");
+        auto* buttons = dialog.findChild<QDialogButtonBox*>();
+        if (action && channel && note && velocity && buttons) {
+          action->setCurrentIndex(action->findData(SM_NOTE_ON));
+          channel->setCurrentIndex(0);
+          note->setCurrentIndex(60);
+          velocity->setValue(100);
+          for (QAbstractButton* b : buttons->buttons()) {
+            if (buttons->buttonRole(b) == QDialogButtonBox::AcceptRole) {
+              b->click();
+              break;
+            }
+          }
+        }
+      }
+      if (!keyboard) keyboard = window.findChild<KeyboardWidget*>();
+      if (keyboard) {
+        song_send_event(SM_SYSTEM, SMS_KEY_EVENT, DIK_V, 1, true);
+        bool plays_c4 = midi_any_note_active(60);
+        song_send_event(SM_SYSTEM, SMS_KEY_EVENT, DIK_V, 0, true);
+        dialog_ok = plays_c4;
+      }
+
+      config_bind_clear_keydown(DIK_V);
+      config_bind_clear_keyup(DIK_V);
+      for (int i = 0; i < n_down; ++i) config_bind_add_keydown(DIK_V, orig_down[i]);
+      for (int i = 0; i < n_up; ++i) config_bind_add_keyup(DIK_V, orig_up[i]);
+      config_bind_set_label(DIK_V, orig_label.c_str());
+
+      std::printf("  [%s] key-function dialog rebinds V to C4\n", dialog_ok ? "ok" : "FAIL");
+      if (!dialog_ok) ++failures;
+    }
 
     std::printf("%s (%d failure%s)\n", failures == 0 ? "UI TEST PASSED" : "UI TEST FAILED",
                 failures, failures == 1 ? "" : "s");
@@ -481,6 +613,13 @@ int main(int argc, char** argv) {
       QApplication::processEvents();
       editor.grab().save(shot_dialogs + "/keymap.png");
       editor.close();
+
+      KeyEditDialog keyedit(DIK_C, &window);
+      keyedit.resize(560, 460);
+      keyedit.show();
+      QApplication::processEvents();
+      keyedit.grab().save(shot_dialogs + "/keyedit.png");
+      keyedit.close();
 
       AboutDialog about(&window);
       about.show();

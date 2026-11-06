@@ -8,6 +8,7 @@
 #include "lang.h"
 
 #include <QFontMetrics>
+#include <QMouseEvent>
 #include <QLinearGradient>
 #include <QPainter>
 #include <QPainterPath>
@@ -30,7 +31,76 @@ QString doh_name(int note) {
 KeyboardWidget::KeyboardWidget(QWidget* parent) : QWidget(parent) {
   setFocusPolicy(Qt::NoFocus);
   setMinimumSize(480, 120);
+  setMouseTracking(true);
+  setCursor(Qt::PointingHandCursor);
   rebuild_geometry();
+}
+
+QRectF KeyboardWidget::scaled_rect(const Key& key) const {
+  return QRectF(ox_ + key.rect.x() * sx_, oy_ + key.rect.y() * sy_,
+                key.rect.width() * sx_ - 2.0, key.rect.height() * sy_ - 2.0);
+}
+
+QRectF KeyboardWidget::keyRect(uint8_t code) const {
+  for (const auto& key : keys_) {
+    if (key.code == code) return scaled_rect(key);
+  }
+  return QRectF();
+}
+
+int KeyboardWidget::key_at(const QPointF& position) const {
+  for (const auto& key : keys_) {
+    if (key.code && scaled_rect(key).contains(position)) return key.code;
+  }
+  return -1;
+}
+
+void KeyboardWidget::press_key(uint8_t code) {
+  if (!code) return;
+  song_send_event(SM_SYSTEM, SMS_KEY_EVENT, code, 1, true);
+  update();
+}
+
+void KeyboardWidget::release_key(uint8_t code) {
+  if (!code) return;
+  song_send_event(SM_SYSTEM, SMS_KEY_EVENT, code, 0, true);
+  update();
+}
+
+void KeyboardWidget::mousePressEvent(QMouseEvent* event) {
+  int code = key_at(event->position());
+  if (code < 0) return;
+
+  if (event->button() == Qt::RightButton) {
+    emit editKeyRequested((uint8_t)code, event->globalPosition().toPoint());
+    event->accept();
+    return;
+  }
+
+  if (event->button() == Qt::LeftButton) {
+    mouse_down_ = true;
+    mouse_code_ = code;
+    press_key((uint8_t)code);
+    event->accept();
+  }
+}
+
+void KeyboardWidget::mouseMoveEvent(QMouseEvent* event) {
+  if (!mouse_down_ || !(event->buttons() & Qt::LeftButton)) return;
+  int code = key_at(event->position());
+  if (code == mouse_code_) return;
+
+  if (mouse_code_ >= 0) release_key((uint8_t)mouse_code_);
+  mouse_code_ = code;
+  if (code >= 0) press_key((uint8_t)code);
+}
+
+void KeyboardWidget::mouseReleaseEvent(QMouseEvent* event) {
+  if (event->button() != Qt::LeftButton || !mouse_down_) return;
+  if (mouse_code_ >= 0) release_key((uint8_t)mouse_code_);
+  mouse_code_ = -1;
+  mouse_down_ = false;
+  event->accept();
 }
 
 void KeyboardWidget::rebuild_geometry() {
@@ -110,8 +180,7 @@ void KeyboardWidget::paintEvent(QPaintEvent* /*event*/) {
   p.fillRect(rect(), QColor(30, 30, 34));
 
   for (const auto& key : keys_) {
-    QRectF r(ox_ + key.rect.x() * sx_, oy_ + key.rect.y() * sy_,
-             key.rect.width() * sx_ - 2.0, key.rect.height() * sy_ - 2.0);
+    QRectF r = scaled_rect(key);
     if (r.width() < 2 || r.height() < 2) continue;
 
     bool pressed = keyboard_get_status(key.code) != 0;

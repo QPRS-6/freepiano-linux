@@ -6,6 +6,7 @@
 class QAction;
 class QLabel;
 class QMenu;
+class QPushButton;
 class QSlider;
 class QSpinBox;
 class QTimer;
@@ -54,6 +55,8 @@ class MainWindow : public QMainWindow {
   void onProgramChanged(int value);
   void onPianoPressed(int note);
   void onPianoReleased(int note);
+  void onSustainToggled(bool on);
+  void onEditKey(uint8_t code, const QPoint& global_position);
 
  private:
   void buildControls();
@@ -68,7 +71,7 @@ class MainWindow : public QMainWindow {
 
   QLabel* instrument_label_ = nullptr;
   QLabel* program_label_ = nullptr;
-  QLabel* sustain_label_ = nullptr;
+  QPushButton* sustain_button_ = nullptr;
   QLabel* time_label_ = nullptr;
   QLabel* status_label_ = nullptr;
 
