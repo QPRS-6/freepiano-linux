@@ -187,6 +187,17 @@ paru -S freepiano-linux
 首次提交需要 AUR 账号和 SSH key，详细步骤见
 [packaging/aur/README.md](packaging/aur/README.md)。
 
+### Arch / CachyOS 二进制包
+
+GitHub Releases 也提供构建好的 pacman 包（已包含 `.desktop`、图标和许可证）：
+
+```bash
+# 从 https://github.com/QPRS-6/freepiano-linux/releases 下载后
+sudo pacman -U freepiano-linux-1.0.5-1-x86_64.pkg.tar.zst
+```
+
+该包未做 GPG 签名，`pacman -U` 可能会提示确认；也可以直接用上面的 AUR 方式本地编译。
+
 ## 开发
 
 ```

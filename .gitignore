@@ -10,3 +10,6 @@ ref/
 packaging/aur/src/
 packaging/aur/pkg/
 packaging/aur/*.pkg.tar.zst
+dist/
+.pkg-build/
+.pkg-test/
