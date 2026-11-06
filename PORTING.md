@@ -154,7 +154,10 @@ note-off，也不清空合成器。恢复时 `song_resume_playback()` 直接从�
 
 写文件固定使用 FreePiano 1.8 格式（`0x01080000`），保证旧版 FreePiano 也能打开。
 读取时接受 1.x 和 2.x（最高 `0x02FFFFFF`）；2.x 的键位映射、键标签和按键事件与 1.8
-的事件流结构一致，未知的新事件在 `song_output_event()` 的默认分支被忽略。
+的事件流结构一致，但键位字段使用按键盘顺序排列的 2.x 键 ID，而不是 DirectInput
+扫描码。打开 2.x 文件时会把键位事件、键位映射、标签和颜色里的键 ID 转换成 Linux
+扫描码（`x2_key_to_dik`），因此右手键位和 Play/Rec/Stop 等功能键会落在正确位置。
+未知的新事件在 `song_output_event()` 的默认分支被忽略。
 
 ### 音频
 

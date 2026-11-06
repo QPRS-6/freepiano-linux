@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include "keyboard.h"
+#include "keycodes.h"
 #include "midi.h"
 #include "sync.h"
 
@@ -44,6 +45,59 @@ static const uint32_t write_version = 0x01080000;
 // FreePiano 2.x (up to 2.2.2.1 observed) keeps the same event stream but bumps
 // the version.  Read those songs as well; unknown/newer events are ignored.
 static const uint32_t max_supported_version = 0x02FFFFFF;
+
+// FreePiano 2.x .fpm files store keys as 1-based indices into this
+// keyboard-order table, not as DirectInput scan codes.  Translate them so
+// 2.x songs use the same physical layout as 1.8 songs.
+static uint8_t x2_key_to_dik(uint8_t code) {
+  static const uint8_t keys[] = {
+    0, DIK_ESCAPE, DIK_F1, DIK_F2, DIK_F3, DIK_F4, DIK_F5, DIK_F6,  // 0x00..0x07
+    DIK_F7, DIK_F8, DIK_F9, DIK_F10, DIK_F11, DIK_F12, DIK_GRAVE, DIK_1,  // 0x08..0x0f
+    DIK_2, DIK_3, DIK_4, DIK_5, DIK_6, DIK_7, DIK_8, DIK_9,  // 0x10..0x17
+    DIK_0, DIK_MINUS, DIK_EQUALS, DIK_BACK, DIK_TAB, DIK_Q, DIK_W, DIK_E,  // 0x18..0x1f
+    DIK_R, DIK_T, DIK_Y, DIK_U, DIK_I, DIK_O, DIK_P, DIK_LBRACKET,  // 0x20..0x27
+    DIK_RBRACKET, DIK_BACKSLASH, DIK_CAPITAL, DIK_A, DIK_S, DIK_D, DIK_F, DIK_G,  // 0x28..0x2f
+    DIK_H, DIK_J, DIK_K, DIK_L, DIK_SEMICOLON, DIK_APOSTROPHE, DIK_RETURN, DIK_LSHIFT,  // 0x30..0x37
+    DIK_Z, DIK_X, DIK_C, DIK_V, DIK_B, DIK_N, DIK_M, DIK_COMMA,  // 0x38..0x3f
+    DIK_PERIOD, DIK_SLASH, DIK_RSHIFT, DIK_LCONTROL, DIK_LWIN, DIK_LMENU, DIK_SPACE, DIK_RMENU,  // 0x40..0x47
+    DIK_APPS, DIK_RWIN, DIK_RCONTROL, DIK_SYSRQ, DIK_SCROLL, DIK_PAUSE, DIK_INSERT, DIK_HOME,  // 0x48..0x4f
+    DIK_PGUP, DIK_DELETE, DIK_END, DIK_PGDN, DIK_UP, DIK_LEFT, DIK_DOWN, DIK_RIGHT,  // 0x50..0x57
+    DIK_NUMLOCK, DIK_NUMPADSLASH, DIK_NUMPADSTAR, DIK_NUMPADMINUS, DIK_NUMPAD7, DIK_NUMPAD8, DIK_NUMPAD9, DIK_NUMPADPLUS,  // 0x58..0x5f
+    DIK_NUMPAD4, DIK_NUMPAD5, DIK_NUMPAD6, DIK_NUMPAD1, DIK_NUMPAD2, DIK_NUMPAD3, DIK_NUMPADENTER, DIK_NUMPAD0,  // 0x60..0x67
+    DIK_NUMPADPERIOD,  // 0x68..0x68
+  };
+  static_assert(sizeof(keys) == 0x69, "2.x key table size");
+  return code < sizeof(keys) ? keys[code] : code;
+}
+
+static void song_translate_x2_keys() {
+  int skip = 0;
+  for (int i = 0; i < song_event_count; ++i) {
+    if (skip > 0) { --skip; continue; }
+    song_event_t& e = song_events[i];
+    if (e.a != SM_SYSTEM) continue;
+    switch (e.b) {
+      case SMS_KEY_MAP:
+        e.c = x2_key_to_dik(e.c);
+        skip = 1;  // next event is the binding
+        break;
+      case SMS_KEY_EVENT:
+        e.c = x2_key_to_dik(e.c);
+        break;
+      case SMS_KEY_LABEL:
+        e.c = x2_key_to_dik(e.c);
+        skip = (e.d + 3) / 4;  // label bytes are packed four per event
+        break;
+      case SMS_KEY_COLOR:
+        e.c = x2_key_to_dik(e.c);
+        skip = 1;
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 
 // ---------------------------------------------------------------------------
 // sync and delayed events
@@ -926,6 +980,8 @@ int song_open(const std::string& filename) {
   song_events.resize(raw_size / sizeof(song_event_t) + 1);
   std::memcpy(song_events.data(), raw.data(), raw_size);
   song_event_count = (int)(raw_size / sizeof(song_event_t));
+
+  if (version >= 0x02000000) song_translate_x2_keys();
 
   std::snprintf(song_info.title, sizeof(song_info.title), "%s", title.c_str());
   std::snprintf(song_info.author, sizeof(song_info.author), "%s", author.c_str());

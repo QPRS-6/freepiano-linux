@@ -98,7 +98,8 @@ sudo cmake --install build          # 默认前缀 /usr/local
 * 曲调控件显示音名和度数，例如 `B(-1)`、`C(0)`、`D(1)`、`E(2)`，范围为 -4 到 7；
   F3/F4 也可在两端之间调节曲调。
 * 八度控件范围为 -3 到 +3，正数显示 `+` 号。
-* 兼容 FreePiano 1.x 和 2.x 录制的 `.fpm`；2.x 中本移植不认识的新事件会被忽略。
+* 兼容 FreePiano 1.x 和 2.x 录制的 `.fpm`；2.x 的键位编号会转换成 Linux 扫描码，
+  右手键位和 Play/Rec/Stop 等功能键显示在正确位置。
 * 「键位」菜单可切换/编辑 `.map`；「乐器」菜单切换 mdaPiano / GM 合成器 / SoundFont，
   并可选择 mdaPiano 的 8 个预设。
 * 设置中可切换音频设备、PulseAudio/PipeWire、采样率、缓冲、MIDI 端口与通道映射。
@@ -187,7 +188,7 @@ PulseAudio，请选择 “PulseAudio / PipeWire (default)”。默认的 mdaPian
 ## AUR
 
 `packaging/aur/` 中已经准备好 AUR 包（`PKGBUILD` + `.SRCINFO`，包名 `freepiano-linux`，
-版本 1.0.13），并已用 `makepkg` 本地构建验证。提交到 AUR 后可以：
+版本 1.0.14），并已用 `makepkg` 本地构建验证。提交到 AUR 后可以：
 
 ```bash
 yay -S freepiano-linux
@@ -204,7 +205,7 @@ GitHub Releases 也提供构建好的 pacman 包（已包含 `.desktop`、图标
 
 ```bash
 # 从 https://github.com/QPRS-6/freepiano-linux/releases 下载后
-sudo pacman -U freepiano-linux-1.0.13-1-x86_64.pkg.tar.zst
+sudo pacman -U freepiano-linux-1.0.14-1-x86_64.pkg.tar.zst
 ```
 
 该包未做 GPG 签名，`pacman -U` 可能会提示确认；也可以直接用上面的 AUR 方式本地编译。
