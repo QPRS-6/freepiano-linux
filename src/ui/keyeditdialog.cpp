@@ -52,7 +52,7 @@ const ActionDef kActions[] = {
     {SM_PRESSURE, KIND_CHANNEL, "通道力度", "Channel pressure", 0, 127, 0},
     {SM_TRANSPOSE, KIND_CHANNEL, "移调", "Transpose", -64, 64, 0},
     {SM_FOLLOW_KEY, KIND_CHANNEL, "跟随曲调", "Follow key", 0, 1, 1},
-    {SM_OCTAVE, KIND_CHANNEL, "八度", "Octave", -1, 7, 1},
+    {SM_OCTAVE, KIND_CHANNEL, "八度", "Octave", -4, 7, 1},
     {SM_VELOCITY, KIND_CHANNEL, "力度", "Velocity", 0, 127, 100},
     {SM_CHANNEL, KIND_CHANNEL, "输出通道", "Output channel", 0, 15, 0},
 

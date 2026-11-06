@@ -761,17 +761,32 @@ int main(int argc, char** argv) {
     std::printf("  [%s] speed combo changes playback speed\n", speed_ok ? "ok" : "FAIL");
     if (!speed_ok) ++failures;
 
-    bool octave_ok = octave0 && octave1 && octave0->minimum() == -1 &&
+    bool octave_ok = octave0 && octave1 && octave0->minimum() == -4 &&
                      octave0->maximum() == 7 && octave0->text() == "C(0)" &&
                      octave1->text() == "C(0)";
     if (octave_ok) {
       octave0->setValue(-1);
-      octave_ok = octave0->text() == "C(-1)";
+      octave_ok = octave0->text() == "B(-1)";
+      octave0->setValue(1);
+      octave_ok = octave_ok && octave0->text() == "D(1)";
+      octave0->setValue(2);
+      octave_ok = octave_ok && octave0->text() == "E(2)";
+      octave0->setValue(-4);
+      octave_ok = octave_ok && octave0->text() == "F(-4)";
       octave0->setValue(7);
       octave_ok = octave_ok && octave0->text() == "C(7)";
       octave0->setValue(0);
     }
-    std::printf("  [%s] octave spin boxes show C(-1)..C(7)\n", octave_ok ? "ok" : "FAIL");
+    if (octave_ok) {
+      config_set_key_signature(1);
+      window.syncControls();
+      octave_ok = octave0->text() == "D(0)";
+      config_set_key_signature(0);
+      window.syncControls();
+      octave_ok = octave_ok && octave0->text() == "C(0)";
+    }
+    std::printf("  [%s] octave labels follow the key (B(-1)..C(7))\n",
+                octave_ok ? "ok" : "FAIL");
     if (!octave_ok) ++failures;
     std::printf("  [%s] progress bar follows playback\n", progress_follows ? "ok" : "FAIL");
     if (!progress_follows) ++failures;
