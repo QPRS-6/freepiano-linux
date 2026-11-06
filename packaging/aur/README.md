@@ -31,7 +31,7 @@ cp /path/to/freepiano-linux/packaging/aur/PKGBUILD .
 cp /path/to/freepiano-linux/packaging/aur/.SRCINFO .
 
 git add PKGBUILD .SRCINFO
-git commit -m "Initial import: freepiano-linux 1.0.6-1"
+git commit -m "Initial import: freepiano-linux 1.0.7-1"
 git push origin master
 ```
 
