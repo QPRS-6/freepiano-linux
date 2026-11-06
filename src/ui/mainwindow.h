@@ -4,6 +4,7 @@
 #include <QString>
 
 class QAction;
+class QComboBox;
 class QLabel;
 class QMenu;
 class QProgressBar;
@@ -39,6 +40,7 @@ class MainWindow : public QMainWindow {
   void onPlay();
   void onPause();
   void onSeekReleased();
+  void onSpeedChanged(int index);
   void onRecord();
   void onStop();
   void onOpenSong();
@@ -85,6 +87,7 @@ class MainWindow : public QMainWindow {
   QSlider* progress_slider_ = nullptr;
   QLabel* progress_elapsed_ = nullptr;
   QLabel* progress_total_ = nullptr;
+  QComboBox* speed_combo_ = nullptr;
   bool seeking_ = false;
 
   QSpinBox* group_spin_ = nullptr;

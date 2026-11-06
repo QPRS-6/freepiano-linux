@@ -683,6 +683,9 @@ int main(int argc, char** argv) {
     auto* play_button = window.findChild<QPushButton*>("playButton");
     auto* pause_button = window.findChild<QPushButton*>("pauseButton");
     auto* stop_button = window.findChild<QPushButton*>("stopButton");
+    auto* speed_combo = window.findChild<QComboBox*>("speedCombo");
+    auto* octave0 = window.findChild<QSpinBox*>("octave0Spin");
+    auto* octave1 = window.findChild<QSpinBox*>("octave1Spin");
     QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
     bool progress_empty_hidden = progress_row && progress_slider && !progress_row->isVisible();
 
@@ -739,6 +742,31 @@ int main(int argc, char** argv) {
     if (!progress_recording_hidden) ++failures;
     std::printf("  [%s] progress row appears with a song\n", progress_visible ? "ok" : "FAIL");
     if (!progress_visible) ++failures;
+
+    bool speed_ok = false;
+    if (speed_combo) {
+      int idx = speed_combo->findData(2.0);
+      if (idx >= 0) {
+        speed_combo->setCurrentIndex(idx);
+        speed_ok = std::fabs(song_get_play_speed() - 2.0) < 0.001;
+        speed_combo->setCurrentIndex(speed_combo->findData(1.0));
+      }
+    }
+    std::printf("  [%s] speed combo changes playback speed\n", speed_ok ? "ok" : "FAIL");
+    if (!speed_ok) ++failures;
+
+    bool octave_ok = octave0 && octave1 && octave0->minimum() == -1 &&
+                     octave0->maximum() == 7 && octave0->text() == "C(0)" &&
+                     octave1->text() == "C(0)";
+    if (octave_ok) {
+      octave0->setValue(-1);
+      octave_ok = octave0->text() == "C(-1)";
+      octave0->setValue(7);
+      octave_ok = octave_ok && octave0->text() == "C(7)";
+      octave0->setValue(0);
+    }
+    std::printf("  [%s] octave spin boxes show C(-1)..C(7)\n", octave_ok ? "ok" : "FAIL");
+    if (!octave_ok) ++failures;
     std::printf("  [%s] progress bar follows playback\n", progress_follows ? "ok" : "FAIL");
     if (!progress_follows) ++failures;
     std::printf("  [%s] pause/resume keeps the progress position\n",

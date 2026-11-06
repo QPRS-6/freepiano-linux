@@ -147,10 +147,16 @@ void MainWindow::buildControls() {
   bar->addWidget(control_label(fp_tr("八度", "Octave"), central));
   oct0_spin_ = new QSpinBox(central);
   oct1_spin_ = new QSpinBox(central);
+  oct0_spin_->setObjectName("octave0Spin");
+  oct1_spin_->setObjectName("octave1Spin");
   for (QSpinBox* spin : {oct0_spin_, oct1_spin_}) {
-    spin->setRange(-1, 1);
-    spin->setFixedWidth(50);
+    spin->setRange(-1, 7);
+    spin->setPrefix("C(");
+    spin->setSuffix(")");
+    spin->setFixedWidth(70);
+    spin->setAlignment(Qt::AlignCenter);
     spin->setFocusPolicy(Qt::NoFocus);
+    spin->setToolTip(fp_tr("八度偏移：C(-1) 到 C(7)", "Octave shift: C(-1) to C(7)"));
     connect(spin, SIGNAL(valueChanged(int)), this, SLOT(onOctaveChanged()));
     bar->addWidget(spin);
   }
@@ -258,6 +264,24 @@ void MainWindow::buildControls() {
   progress_layout->addWidget(progress_elapsed_);
   progress_layout->addWidget(progress_slider_, 1);
   progress_layout->addWidget(progress_total_);
+
+  auto* speed_label = new QLabel(fp_tr("倍速", "Speed"), progress_row_);
+  speed_label->setStyleSheet("color:#9a9aa2;");
+  progress_layout->addWidget(speed_label);
+
+  speed_combo_ = new QComboBox(progress_row_);
+  speed_combo_->setObjectName("speedCombo");
+  speed_combo_->setFocusPolicy(Qt::NoFocus);
+  speed_combo_->setFixedWidth(76);
+  speed_combo_->setToolTip(fp_tr("播放倍速", "Playback speed"));
+  for (double speed : {0.5, 0.75, 1.0, 1.25, 1.5, 2.0}) {
+    QString text = (speed == (int)speed) ? QString::number(speed) : QString::number(speed, 'f', 2);
+    speed_combo_->addItem(text + "x", speed);
+  }
+  speed_combo_->setCurrentIndex(speed_combo_->findData(1.0));
+  connect(speed_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+          &MainWindow::onSpeedChanged);
+  progress_layout->addWidget(speed_combo_);
   layout->addWidget(progress_row_);
   progress_row_->setVisible(false);
 
@@ -627,6 +651,12 @@ void MainWindow::onSeekReleased() {
   seeking_ = false;
   if (progress_slider_) song_seek(progress_slider_->value());
   tick();
+}
+
+void MainWindow::onSpeedChanged(int index) {
+  if (!speed_combo_ || index < 0) return;
+  double speed = speed_combo_->itemData(index).toDouble();
+  if (speed > 0) song_set_play_speed(speed);
 }
 
 void MainWindow::onPause() {
