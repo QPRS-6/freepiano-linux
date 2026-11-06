@@ -4,3 +4,4 @@ build/
 ref/
 *.o
 *.user
+*.tar.gz
