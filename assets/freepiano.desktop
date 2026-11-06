@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=FreePiano
+GenericName=Keyboard Piano
+Comment=Play MIDI instruments with your computer keyboard
+Comment[zh_CN]=用电脑键盘演奏 MIDI 乐器
+Exec=freepiano %f
+Icon=freepiano
+Terminal=false
+Categories=AudioVideo;Audio;Midi;Music;
+Keywords=piano;midi;keyboard;music;freepiano;

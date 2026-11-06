@@ -1,0 +1,167 @@
+# FreePiano → Linux 移植说明
+
+FreePiano 1.8 原本是 Windows / Win32 程序：DirectInput 低级键盘钩子、Direct3D 皮肤渲染、
+DirectSound/WASAPI/ASIO 音频、VST2 宿主、WinMM MIDI、以及用 x264/faac/mp4v2 导出 MP4。
+本移植保留**事件模型、脚本语义和文件格式**，把平台层全部换成 Linux 原生实现。
+
+上游：<https://github.com/Energy0124/freepiano>（`src/`、`data/`、`res/`）。
+
+## 模块对照
+
+| 原版（Windows） | 本移植（Linux） |
+| --- | --- |
+| `src/config.cpp`（设置、`.map` 解析、键位映射） | `src/core/config.cpp`（重写为可移植 C++，键位/脚本语法保持一致） |
+| `src/song.cpp`（事件引擎、录音、`.fpm`、`.lyt`） | `src/core/song.cpp`（`.fpm` 完整移植；`.lyt` 未实现） |
+| `src/keyboard.cpp`（低级键盘钩子、自动 NoteOff） | `src/core/keyboard.cpp` + Qt 键事件（`src/ui/qtkeymap.cpp`） |
+| `src/midi.cpp`（WinMM MIDI 与 VST 路由） | `src/core/midi.cpp`（统一事件分发，去掉 WinMM） |
+| `src/synthesizer_vst.cpp` + `src/vst/*` | `src/core/synth_builtin.cpp`（内置合成器）+ `src/core/fluidsynth_engine.cpp`（SoundFont） |
+| `src/output_dsound/wasapi/asio.cpp` | `src/core/audio.cpp`（PortAudio + PulseAudio/PipeWire） |
+| `-`（Windows 的 MIDI 设备） | `src/core/alsa_midi.cpp`（ALSA sequencer 输入/输出） |
+| `src/display.cpp`（Direct3D 皮肤、按键渲染） | `src/ui/keyboardwidget.cpp`、`pianowidget.cpp`（Qt 绘制，沿用原版键位坐标） |
+| `src/gui.cpp`（Win32 自绘控件/菜单） | `src/ui/mainwindow.cpp` + `settingsdialog.cpp` + `keymapeditordialog.cpp` |
+| `src/export_wav.cpp` | `src/core/wav_export.cpp` + `engine_export_wav()` |
+| `src/export_mp4.cpp`（x264/faac/mp4v2） | 未移植（当前导出 WAV；可用 ffmpeg 再合成视频） |
+| `src/language.cpp` + `res/*.txt` | `src/ui/lang.h`（中/英双语） |
+| `src/update.cpp`（自动更新） | 未移植（发行版包管理负责升级） |
+
+## 保持兼容的部分
+
+### 事件元组
+
+FreePiano 的所有脚本、录音事件都是 `(a, b, c, d)` 四字节元组。本移植使用同样的
+`key_bind_t` 和常量（`src/core/events.h`），因此：
+
+* `.map` 中的 `keydown a NoteOn In_0 c3`、`keydown F5 Octave In_0 Inc 1` 等语义完全一致；
+* `.fpm` 中的事件流可以被原版读取，反过来也一样；
+* `Group / KeySignature / Transpose / FollowKey / Octave / Velocity / Channel / Program /
+  BankMSB / BankLSB / Sustain / Modulation / Pressure / Pitch / Play / Record / Stop /
+  Sync* / Press` 等修饰符都按原逻辑实现。
+
+### 键位编号
+
+原版用 DirectInput 的 PC 扫描码（IBM set 1）作为键号。本移植保留这套编号
+（`src/core/keycodes.h`），因此 `.map` 里的数字键号、`.fpm` 里记录的键事件仍然有效。
+Qt 键事件通过 `dik_from_qt()` 转换成扫描码：
+
+* Linux evdev 键码 → 扫描码（X11/Wayland 的 `nativeScanCode` 允许带 `+8` 偏移）；
+* 数字小键盘、左右 Ctrl/Alt/Shift、方向键等扩展键优先用扫描码，避免 Qt 逻辑键的歧义；
+* 其余按键回退到 Qt::Key 表，保证在没有有效扫描码时仍能演奏。
+
+### `.fpm` 格式
+
+```
+"FreePianoSong\0"          14 bytes
+uint32 version             (0x01080000 = 1.8)
+uint32 len + title
+uint32 len + author
+uint32 len + comment
+uint32 len + instrument
+uint32 compressed_size
+zlib(compressed_size)  ->  16-byte events {double time; u8 a,b,c,d;}
+```
+
+事件结构在 x86-64 与 MSVC 下都是 16 字节（`double` 8 字节对齐），移植用
+`static_assert(sizeof(song_event_t) == 16)` 固定下来。
+
+### 脚本时序
+
+* 音频回调每块调用 `song_update(1000 * frames / sample_rate)`，与原版
+  DirectSound/WASAPI 回调驱动播放的方式一致；
+* 录音时间戳、`Sync`/`Press` 延迟事件、弯音平滑（每 2ms 一步）都沿用原实现；
+* 关闭音频时使用"静音计时器"线程驱动同样的步进，保证无音频设备时也能播放/导出。
+
+### 键位文件解析
+
+原版的解析器支持大量别名、中文命令和旧版本兼容：
+
+* 动作/通道/音符/控制器名称大小写不敏感；
+* `Set/Inc/Dec/Flip/Press/Set10/Set1/Sync*` 与中文别名；
+* `key`（旧写法）= `keydown` + 自动 NoteOff；
+* `FreePiano <version>` 决定旧音符编号偏移（<1.7 时 -12）；
+* `GroupCount` 会清空所有分组（与原文一致）。
+
+移植重新实现了词法分析器，但返回值与副作用保持一致；`.map` 文本保存格式也兼容原版
+（`GroupCount`、`Group Set n`、各通道设置、`keydown`/`label`/`color` 行）。
+
+### 中文编码
+
+上游工程本身是 GBK，但用户键位文件可能是 UTF-8 或 GBK。加载 `.map` 时先检测 UTF-8，
+非法时用 `iconv` 按 GB18030 转成 UTF-8，再解析中文指令。
+
+## 平台相关替换
+
+### 音频
+
+```
+MIDI 事件 → midi_output_event()
+            ├─ synth_sink  → 内置合成器 / FluidSynth
+            └─ external_sink → ALSA sequencer（仅当音源设为 None）
+```
+
+音频输出有两种后端，按配置自动选择：
+
+1. **PortAudio**（`audio.cpp`）：优先；支持 ALSA/JACK 设备，低延迟；
+2. **PulseAudio / PipeWire**（libpulse-simple）：没有 ALSA 声卡或 PortAudio 打开失败时回退；
+3. **静音计时器**：全部失败时仍然按真实时间推进播放/录音。
+
+内置合成器不依赖任何资产：12 种 GM 音色模型（钢琴、电钢、风琴、弦乐、Pad、铜管、长笛、
+钟琴、拨弦、贝斯、Lead、音效），带 ADSR、力度亮度、延音踏板、弯音、通道音量/表情/声像、
+64 复音与声部抢占。
+
+### MIDI
+
+ALSA sequencer 同时提供输入和输出：
+
+* 输出：创建 "FreePiano Out" 端口，订阅用户在设置中选择的端口，发送 note/CC/program/
+  pitchbend；
+* 输入：创建 "FreePiano In" 端口并在独立线程 poll 事件，按原版 WinMM 回调的规则做通道
+  重映射与曲调移调，然后 `song_send_event(..., record=true)` 进入录音。
+
+### 键盘
+
+原版用 `SetWindowsHookEx(WH_KEYBOARD_LL)` 做全局钩子，可以在任何前台窗口演奏。
+Linux 下没有等价且可移植的机制：
+
+* X11 理论上可以 `XGrabKeyboard` 全局抓键，但 Wayland 明确禁止；
+* 需要全局热键时应使用桌面环境的快捷键或 `uinput`/`evdev` 权限方案，超出当前移植范围。
+
+因此本移植在窗口获得焦点时演奏；窗口失焦时会释放所有按下的音符，并把释放事件写入录音，
+避免出现悬挂的音符。
+
+### 皮肤
+
+原版用 `res/*.png` 贴图 + Direct3D 渲染。Qt 版本直接绘制同布局的键盘（坐标表从
+`display.cpp` 的 `keys1[]` 提取，见 `src/ui/keyboardlayout.h`），配色参照原版截图。
+不加载原版皮肤，避免依赖 Direct3D 纹理格式。
+
+## 已知限制 / 后续工作
+
+* **MP4 导出**：原版用 x264 + faac + mp4v2 合成"键盘画面 + 音频"视频。Linux 版目前只导出
+  WAV；可用 `ffmpeg` 将 WAV 与屏幕录制合成为视频。后续可基于 Qt 离屏渲染 + libav 实现。
+* **VST/VSTi**：没有移植 VST2 宿主。Linux 上 VST 生态与 Windows DLL 不通用，改用
+  SoundFont/FluidSynth；如果需要，可以对接 Carla / jalv 或 Linux 原生 VST3。
+* **`.lyt`（iDreamPiano）导入**：未实现（原格式是固定结构的遗留二进制）。`.fpm` 已完整支持。
+* **全局键盘钩子**：受限（见上）；可在 X11 下增加可选 `XGrabKeyboard` 模式。
+* **自动更新**：未实现，交由发行版包管理。
+* **皮肤**：未实现原版 PNG 皮肤。
+* **音频设备热插拔**：设置中重新选择设备即可；未监听系统设备变化。
+* **高采样率/多声道**：固定立体声输出。
+
+## 测试
+
+```bash
+# 引擎 + 文件格式 + WAV
+./build/bin/freepiano --selftest --no-audio
+
+# 所有键位文件
+./build/bin/freepiano --test-maps ./assets
+
+# 上游 demo 乐曲（需要 freepiano 源码树）
+./build/bin/freepiano --test-songs /path/to/freepiano/data/song
+
+# 无显示环境截图（开发用）
+QT_QPA_PLATFORM=offscreen ./build/bin/freepiano --screenshot /tmp/ui.png --no-audio --demo
+```
+
+`--selftest` 覆盖：默认键位、Qt 键码映射、按键→音符、录音、`.fpm` 保存/打开往返、
+播放、分组往返、WAV 离线渲染（检查峰值非静音）。
