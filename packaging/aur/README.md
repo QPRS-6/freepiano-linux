@@ -22,14 +22,22 @@ ssh aur@aur.archlinux.org          # should say: Interactive shell is disabled.
 ## First submission
 
 ```bash
-git clone ssh://aur@aur.archlinux.org/freepiano-linux.git
+mkdir freepiano-linux
 cd freepiano-linux
+git init -b master
+git remote add origin ssh://aur@aur.archlinux.org/freepiano-linux.git
+
 cp /path/to/freepiano-linux/packaging/aur/PKGBUILD .
 cp /path/to/freepiano-linux/packaging/aur/.SRCINFO .
+
 git add PKGBUILD .SRCINFO
-git commit -m "freepiano-linux 1.0.5-1"
+git commit -m "Initial import: freepiano-linux 1.0.5-1"
 git push origin master
 ```
+
+If the AUR repository already exists, use
+`git clone ssh://aur@aur.archlinux.org/freepiano-linux.git` instead of the
+`git init`/`git remote add` pair.
 
 The first push creates the package. No pull request is needed. After a short
 delay it appears at <https://aur.archlinux.org/packages/freepiano-linux>.
