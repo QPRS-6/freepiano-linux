@@ -26,7 +26,6 @@
 #include <QIcon>
 #include <QKeyEvent>
 #include <QLabel>
-#include <QLineEdit>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -65,31 +64,29 @@ QFrame* separator(QWidget* parent) {
   return line;
 }
 
-QString octave_label(int value, int key_signature) {
-  static const char* names[12] = {"C",  "C#", "D",  "D#", "E",  "F",
-                                  "F#", "G",  "G#", "A",  "A#", "B"};
-  // Diatonic degree -> semitone offsets for C major (degree -4..7).
-  static const int degree_semitone[12] = {-7, -5, -3, -1, 0, 2, 4, 5, 7, 9, 11, 12};
-  // Key-signature degree -> root note (C major scale degrees -4..7).
-  static const int key_root[12] = {5, 7, 9, 11, 0, 2, 4, 5, 7, 9, 11, 0};
-  int key = std::clamp(key_signature, -4, 7) + 4;
-  int degree = std::clamp(value, -4, 7) + 4;
-  int semitone = (key_root[key] + degree_semitone[degree]) % 12;
-  if (semitone < 0) semitone += 12;
-  return QString::fromLatin1(names[semitone]) + "(" + QString::number(value) + ")";
+QString key_label(int value) {
+  // -4..7 maps to the diatonic degrees around C: F G A B C D E F G A B C.
+  static const char* names[12] = {"F", "G", "A", "B", "C", "D",
+                                  "E", "F", "G", "A", "B", "C"};
+  int v = std::clamp(value, -4, 7);
+  return QString::fromLatin1(names[v + 4]) + "(" + QString::number(value) + ")";
 }
 
-class OctaveSpinBox : public QSpinBox {
+class KeySpinBox : public QSpinBox {
  public:
-  explicit OctaveSpinBox(QWidget* parent) : QSpinBox(parent) {}
+  explicit KeySpinBox(QWidget* parent) : QSpinBox(parent) {}
 
-  void refreshText() {
-    if (QLineEdit* edit = lineEdit()) edit->setText(text());
-  }
+ protected:
+  QString textFromValue(int value) const override { return key_label(value); }
+};
+
+class SignedSpinBox : public QSpinBox {
+ public:
+  explicit SignedSpinBox(QWidget* parent) : QSpinBox(parent) {}
 
  protected:
   QString textFromValue(int value) const override {
-    return octave_label(value, config_get_key_signature());
+    return value > 0 ? "+" + QString::number(value) : QString::number(value);
   }
 };
 
@@ -156,11 +153,14 @@ void MainWindow::buildControls() {
   bar->addWidget(group_spin_);
 
   bar->addWidget(control_label(fp_tr("曲调", "Key"), central));
-  key_sign_spin_ = new QSpinBox(central);
+  key_sign_spin_ = new KeySpinBox(central);
+  key_sign_spin_->setObjectName("keySignatureSpin");
   key_sign_spin_->setRange(-4, 7);
-  key_sign_spin_->setFixedWidth(52);
+  key_sign_spin_->setFixedWidth(70);
+  key_sign_spin_->setAlignment(Qt::AlignCenter);
+  key_sign_spin_->setReadOnly(true);
   key_sign_spin_->setFocusPolicy(Qt::NoFocus);
-  key_sign_spin_->setToolTip(fp_tr("跟随曲调的通道使用的移调量", "Key signature offset applied to channels that follow the key"));
+  key_sign_spin_->setToolTip(fp_tr("曲调：音名 + 度数", "Key: note name + degree"));
   connect(key_sign_spin_, SIGNAL(valueChanged(int)), this, SLOT(onKeySignatureChanged(int)));
   bar->addWidget(key_sign_spin_);
 
@@ -176,17 +176,14 @@ void MainWindow::buildControls() {
   }
 
   bar->addWidget(control_label(fp_tr("八度", "Octave"), central));
-  oct0_spin_ = new OctaveSpinBox(central);
-  oct1_spin_ = new OctaveSpinBox(central);
+  oct0_spin_ = new SignedSpinBox(central);
+  oct1_spin_ = new SignedSpinBox(central);
   oct0_spin_->setObjectName("octave0Spin");
   oct1_spin_->setObjectName("octave1Spin");
   for (QSpinBox* spin : {oct0_spin_, oct1_spin_}) {
-    spin->setRange(-4, 7);
-    spin->setFixedWidth(70);
-    spin->setAlignment(Qt::AlignCenter);
+    spin->setRange(-3, 3);
+    spin->setFixedWidth(50);
     spin->setFocusPolicy(Qt::NoFocus);
-    spin->setReadOnly(true);
-    spin->setToolTip(fp_tr("八度偏移：跟随曲调，范围 -4 到 7", "Octave shift: follows key, -4 to 7"));
     connect(spin, SIGNAL(valueChanged(int)), this, SLOT(onOctaveChanged()));
     bar->addWidget(spin);
   }
@@ -511,7 +508,6 @@ void MainWindow::tick() {
   if ((int)config_get_key_signature() != key_sign_spin_->value()) {
     QSignalBlocker block(key_sign_spin_);
     key_sign_spin_->setValue(config_get_key_signature());
-    refreshOctaveLabels();
   }
   if ((int)config_get_key_velocity(0) != vel0_spin_->value()) {
     QSignalBlocker block(vel0_spin_);
@@ -922,7 +918,6 @@ void MainWindow::onGroupChanged(int value) {
 
 void MainWindow::onKeySignatureChanged(int value) {
   config_set_key_signature((char)value);
-  refreshOctaveLabels();
   keyboard_->update();
   setFocus();
 }
@@ -988,13 +983,6 @@ void MainWindow::updateStatusBar() {
   if (!problem.isEmpty()) text += QString("  |  ! ") + problem;
   status_label_->setText(text);
   if (instrument_label_) instrument_label_->setText(QString::fromStdString(engine_instrument_name()));
-}
-
-void MainWindow::refreshOctaveLabels() {
-  for (QSpinBox* spin : {oct0_spin_, oct1_spin_}) {
-    if (!spin) continue;
-    static_cast<OctaveSpinBox*>(spin)->refreshText();
-  }
 }
 
 void MainWindow::updateWindowTitle() {

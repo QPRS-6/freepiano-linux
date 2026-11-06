@@ -69,7 +69,6 @@ class MainWindow : public QMainWindow {
   void buildMenus();
   void updateStatusBar();
   void updateWindowTitle();
-  void refreshOctaveLabels();
   void warn(const QString& text);
 
   KeyboardWidget* keyboard_ = nullptr;

@@ -684,6 +684,7 @@ int main(int argc, char** argv) {
     auto* pause_button = window.findChild<QPushButton*>("pauseButton");
     auto* stop_button = window.findChild<QPushButton*>("stopButton");
     auto* speed_combo = window.findChild<QComboBox*>("speedCombo");
+    auto* key_spin = window.findChild<QSpinBox*>("keySignatureSpin");
     auto* octave0 = window.findChild<QSpinBox*>("octave0Spin");
     auto* octave1 = window.findChild<QSpinBox*>("octave1Spin");
     QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
@@ -761,32 +762,35 @@ int main(int argc, char** argv) {
     std::printf("  [%s] speed combo changes playback speed\n", speed_ok ? "ok" : "FAIL");
     if (!speed_ok) ++failures;
 
-    bool octave_ok = octave0 && octave1 && octave0->minimum() == -4 &&
-                     octave0->maximum() == 7 && octave0->text() == "C(0)" &&
-                     octave1->text() == "C(0)";
+    bool key_ok = key_spin && key_spin->minimum() == -4 && key_spin->maximum() == 7 &&
+                  key_spin->text() == "C(0)";
+    if (key_ok) {
+      key_spin->setValue(-1);
+      key_ok = key_spin->text() == "B(-1)";
+      key_spin->setValue(1);
+      key_ok = key_ok && key_spin->text() == "D(1)";
+      key_spin->setValue(2);
+      key_ok = key_ok && key_spin->text() == "E(2)";
+      key_spin->setValue(-4);
+      key_ok = key_ok && key_spin->text() == "F(-4)";
+      key_spin->setValue(7);
+      key_ok = key_ok && key_spin->text() == "C(7)";
+      key_spin->setValue(0);
+    }
+    std::printf("  [%s] key labels show B(-1)..C(7)\n", key_ok ? "ok" : "FAIL");
+    if (!key_ok) ++failures;
+
+    bool octave_ok = octave0 && octave1 && octave0->minimum() == -3 &&
+                     octave0->maximum() == 3 && octave0->text() == "0" &&
+                     octave1->text() == "0";
     if (octave_ok) {
-      octave0->setValue(-1);
-      octave_ok = octave0->text() == "B(-1)";
-      octave0->setValue(1);
-      octave_ok = octave_ok && octave0->text() == "D(1)";
-      octave0->setValue(2);
-      octave_ok = octave_ok && octave0->text() == "E(2)";
-      octave0->setValue(-4);
-      octave_ok = octave_ok && octave0->text() == "F(-4)";
-      octave0->setValue(7);
-      octave_ok = octave_ok && octave0->text() == "C(7)";
+      octave0->setValue(3);
+      octave_ok = octave0->text() == "+3";
+      octave0->setValue(-3);
+      octave_ok = octave_ok && octave0->text() == "-3";
       octave0->setValue(0);
     }
-    if (octave_ok) {
-      config_set_key_signature(1);
-      window.syncControls();
-      octave_ok = octave0->text() == "D(0)";
-      config_set_key_signature(0);
-      window.syncControls();
-      octave_ok = octave_ok && octave0->text() == "C(0)";
-    }
-    std::printf("  [%s] octave labels follow the key (B(-1)..C(7))\n",
-                octave_ok ? "ok" : "FAIL");
+    std::printf("  [%s] octave range is -3..+3\n", octave_ok ? "ok" : "FAIL");
     if (!octave_ok) ++failures;
     std::printf("  [%s] progress bar follows playback\n", progress_follows ? "ok" : "FAIL");
     if (!progress_follows) ++failures;

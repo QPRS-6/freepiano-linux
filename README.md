@@ -95,7 +95,8 @@ sudo cmake --install build          # 默认前缀 /usr/local
   键位脚本/乐曲回放更新；开启时会录入乐曲。
 * 有乐曲时，键盘和钢琴之间会显示播放 / 暂停 / 停止、进度条和倍速；拖动进度条可跳转，没有乐曲时隐藏。
 * `●` 录制、`▶` 播放、`❚❚` 暂停、`■` 停止；`Ctrl+O / Ctrl+S` 打开/保存 `.fpm`，`Ctrl+E` 导出 WAV。
-* 八度控制跟随曲调显示音名和范围，例如 `B(-1)`、`C(0)`、`D(1)`、`E(2)`，范围为 -4 到 7。
+* 曲调控件显示音名和度数，例如 `B(-1)`、`C(0)`、`D(1)`、`E(2)`，范围为 -4 到 7。
+* 八度控件范围为 -3 到 +3，正数显示 `+` 号。
 * 兼容 FreePiano 1.x 和 2.x 录制的 `.fpm`；2.x 中本移植不认识的新事件会被忽略。
 * 「键位」菜单可切换/编辑 `.map`；「乐器」菜单切换 mdaPiano / GM 合成器 / SoundFont，
   并可选择 mdaPiano 的 8 个预设。
@@ -185,7 +186,7 @@ PulseAudio，请选择 “PulseAudio / PipeWire (default)”。默认的 mdaPian
 ## AUR
 
 `packaging/aur/` 中已经准备好 AUR 包（`PKGBUILD` + `.SRCINFO`，包名 `freepiano-linux`，
-版本 1.0.10），并已用 `makepkg` 本地构建验证。提交到 AUR 后可以：
+版本 1.0.11），并已用 `makepkg` 本地构建验证。提交到 AUR 后可以：
 
 ```bash
 yay -S freepiano-linux
@@ -202,7 +203,7 @@ GitHub Releases 也提供构建好的 pacman 包（已包含 `.desktop`、图标
 
 ```bash
 # 从 https://github.com/QPRS-6/freepiano-linux/releases 下载后
-sudo pacman -U freepiano-linux-1.0.10-1-x86_64.pkg.tar.zst
+sudo pacman -U freepiano-linux-1.0.11-1-x86_64.pkg.tar.zst
 ```
 
 该包未做 GPG 签名，`pacman -U` 可能会提示确认；也可以直接用上面的 AUR 方式本地编译。
