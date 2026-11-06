@@ -12,6 +12,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QSpinBox>
 #include <QVBoxLayout>
 
@@ -169,6 +170,21 @@ void KeyEditDialog::buildUi() {
   value_->setRange(0, 127);
   form_->addRow(fp_tr("数值", "Value"), value_);
 
+  sustain_mode_box_ = new QWidget(this);
+  auto* mode_layout = new QVBoxLayout(sustain_mode_box_);
+  mode_layout->setContentsMargins(0, 0, 0, 0);
+  mode_layout->setSpacing(2);
+  sustain_hold_ = new QRadioButton(
+      fp_tr("按住延音（按下开启，松开关闭）", "Hold to sustain (on while held)"), sustain_mode_box_);
+  sustain_hold_->setObjectName("sustainHoldRadio");
+  sustain_toggle_ = new QRadioButton(
+      fp_tr("切换延音（按一下开，再按关）", "Toggle sustain (press to switch)"), sustain_mode_box_);
+  sustain_toggle_->setObjectName("sustainToggleRadio");
+  sustain_toggle_->setChecked(true);
+  mode_layout->addWidget(sustain_hold_);
+  mode_layout->addWidget(sustain_toggle_);
+  form_->addRow(fp_tr("延音方式", "Sustain mode"), sustain_mode_box_);
+
   label_ = new QLineEdit(this);
   label_->setObjectName("keyLabelEdit");
   label_->setPlaceholderText(fp_tr("留空则自动显示音符名", "Empty = automatic note label"));
@@ -264,6 +280,21 @@ void KeyEditDialog::loadCurrentBinding() {
       break;
   }
 
+  bool sustain_hold = false;
+  if (action == SM_SUSTAIN) {
+    if (nd > 0 && current_binding_.c == SM_VALUE_FLIP) {
+      sustain_hold = false;
+    } else if (nd > 0 && current_binding_.c == SM_VALUE_SET && current_binding_.d != 0) {
+      sustain_hold = nu > 0 && keyup[0].a == SM_SUSTAIN && keyup[0].c == SM_VALUE_SET &&
+                     keyup[0].d == 0;
+    } else if (nu > 0 && keyup[0].a == SM_SUSTAIN && keyup[0].c == SM_VALUE_SET &&
+               keyup[0].d == 0) {
+      sustain_hold = true;
+    }
+  }
+  sustain_hold_->setChecked(sustain_hold);
+  sustain_toggle_->setChecked(!sustain_hold);
+
   channel_->setCurrentIndex(std::clamp(channel, 0, 15));
   note_->setCurrentIndex(std::clamp(note, 0, 127));
   bool follow_velocity = kind_ == KIND_NOTE && velocity == 0 && action != SM_NOTE_OFF;
@@ -278,7 +309,11 @@ void KeyEditDialog::loadCurrentBinding() {
 
   if (def && current_binding_.a) {
     QString summary = action_->currentText();
-    switch (kind_) {
+    if (action == SM_SUSTAIN) {
+      summary += QString(" · In_%1 · ").arg(channel);
+      summary += sustain_hold_->isChecked() ? fp_tr("按住延音", "hold")
+                                            : fp_tr("切换延音", "toggle");
+    } else switch (kind_) {
       case KIND_NOTE:
         summary += QString(" · In_%1 · %2").arg(channel).arg(note_->currentText());
         if (action != SM_NOTE_OFF) {
@@ -305,6 +340,7 @@ void KeyEditDialog::onActionChanged() {
   if (loading_) return;
   int action = action_->currentData().toInt();
   kind_ = actionKind(action);
+  if (action == SM_SUSTAIN) sustain_toggle_->setChecked(true);  // default: toggle
   const ActionDef* def = findAction(action);
   if (def) {
     value_->setRange(def->min_value, def->max_value);
@@ -323,12 +359,14 @@ void KeyEditDialog::updateFields() {
 
   int action = action_->currentData().toInt();
   bool has_velocity = note && action != SM_NOTE_OFF;
+  bool sustain = action == SM_SUSTAIN;
   showRow(channel_, note || channel);
   showRow(note_, note);
   showRow(velocity_, has_velocity);
   showRow(group_velocity_, has_velocity);
-  showRow(op_, channel || global);
-  showRow(value_, channel || global || count);
+  showRow(op_, (channel || global) && !sustain);
+  showRow(value_, (channel || global || count) && !sustain);
+  showRow(sustain_mode_box_, sustain);
 
   if (auto* l = qobject_cast<QLabel*>(form_->labelForField(velocity_))) {
     l->setText(action == SM_NOTE_PRESSURE ? fp_tr("压力", "Pressure") : fp_tr("力度", "Velocity"));
@@ -352,6 +390,23 @@ void KeyEditDialog::apply() {
   int value = value_->value();
   int velocity = velocity_->value();
   int op = op_->currentData().toInt();
+
+  if (action == SM_SUSTAIN) {
+    config_bind_clear_keydown(key_code_);
+    config_bind_clear_keyup(key_code_);
+    if (sustain_hold_->isChecked()) {
+      config_bind_add_keydown(key_code_,
+                              key_bind_t((uint8_t)SM_SUSTAIN, (uint8_t)channel, SM_VALUE_SET, 127));
+      config_bind_add_keyup(key_code_,
+                            key_bind_t((uint8_t)SM_SUSTAIN, (uint8_t)channel, SM_VALUE_SET, 0));
+    } else {
+      config_bind_add_keydown(key_code_,
+                              key_bind_t((uint8_t)SM_SUSTAIN, (uint8_t)channel, SM_VALUE_FLIP, 127));
+    }
+    config_bind_set_label(key_code_, label_->text().toUtf8().constData());
+    accept();
+    return;
+  }
 
   key_bind_t bind;
   switch (kind) {

@@ -7,6 +7,7 @@
 #include <QSpinBox>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QTabWidget>
 #include <QTimer>
 
@@ -532,6 +533,88 @@ int main(int argc, char** argv) {
       if (!dialog_ok) ++failures;
     }
 
+    // Sustain key modes: hold (keyup releases) and toggle (each press flips).
+    {
+      key_bind_t orig_down[16];
+      key_bind_t orig_up[16];
+      int n_down = config_bind_get_keydown(DIK_SPACE, orig_down, 16);
+      int n_up = config_bind_get_keyup(DIK_SPACE, orig_up, 16);
+      std::string orig_label = config_bind_get_label(DIK_SPACE);
+      int out_ch = config_get_output_channel(0);
+
+      auto apply_sustain_mode = [&](int mode_index) {
+        KeyEditDialog dialog(DIK_SPACE, &window);
+        dialog.show();
+        QApplication::processEvents();
+        auto* action = dialog.findChild<QComboBox*>("actionCombo");
+        auto* hold = dialog.findChild<QRadioButton*>("sustainHoldRadio");
+        auto* toggle = dialog.findChild<QRadioButton*>("sustainToggleRadio");
+        auto* buttons = dialog.findChild<QDialogButtonBox*>();
+        if (!action || !hold || !toggle || !buttons) return false;
+        action->setCurrentIndex(action->findData(SM_SUSTAIN));
+        if (mode_index == 0) hold->setChecked(true); else toggle->setChecked(true);
+        for (QAbstractButton* b : buttons->buttons()) {
+          if (buttons->buttonRole(b) == QDialogButtonBox::AcceptRole) {
+            b->click();
+            return true;
+          }
+        }
+        return false;
+      };
+
+      // Load the exact binding the user had (Sustain ... Flip 0) and make sure
+      // the dialog recognises it as "toggle" rather than showing Set/Value.
+      config_bind_clear_keydown(DIK_SPACE);
+      config_bind_clear_keyup(DIK_SPACE);
+      config_bind_add_keydown(DIK_SPACE, key_bind_t(SM_SUSTAIN, 0, SM_VALUE_FLIP, 0));
+      bool detected_toggle = false;
+      {
+        KeyEditDialog dialog(DIK_SPACE, &window);
+        dialog.show();
+        QApplication::processEvents();
+        auto* hold = dialog.findChild<QRadioButton*>("sustainHoldRadio");
+        auto* toggle = dialog.findChild<QRadioButton*>("sustainToggleRadio");
+        detected_toggle = hold && toggle && !hold->isChecked() && toggle->isChecked();
+        dialog.reject();
+      }
+      std::printf("  [%s] sustain dialog recognises Flip binding as toggle\n",
+                  detected_toggle ? "ok" : "FAIL");
+      if (!detected_toggle) ++failures;
+
+      bool hold_ok = false;
+      song_send_event(SM_SUSTAIN, 0, SM_VALUE_SET, 0, true);
+      if (apply_sustain_mode(0)) {
+        song_send_event(SM_SYSTEM, SMS_KEY_EVENT, DIK_SPACE, 1, true);
+        bool on = config_get_controller((uint8_t)(SM_OUTPUT_0 + out_ch), 64) >= 64;
+        song_send_event(SM_SYSTEM, SMS_KEY_EVENT, DIK_SPACE, 0, true);
+        bool off = config_get_controller((uint8_t)(SM_OUTPUT_0 + out_ch), 64) < 64;
+        hold_ok = on && off;
+      }
+      std::printf("  [%s] sustain key: hold mode turns off on release\n", hold_ok ? "ok" : "FAIL");
+      if (!hold_ok) ++failures;
+
+      bool toggle_ok = false;
+      song_send_event(SM_SUSTAIN, 0, SM_VALUE_SET, 0, true);
+      if (apply_sustain_mode(1)) {
+        song_send_event(SM_SYSTEM, SMS_KEY_EVENT, DIK_SPACE, 1, true);
+        bool on = config_get_controller((uint8_t)(SM_OUTPUT_0 + out_ch), 64) >= 64;
+        song_send_event(SM_SYSTEM, SMS_KEY_EVENT, DIK_SPACE, 0, true);
+        song_send_event(SM_SYSTEM, SMS_KEY_EVENT, DIK_SPACE, 1, true);
+        bool off = config_get_controller((uint8_t)(SM_OUTPUT_0 + out_ch), 64) < 64;
+        song_send_event(SM_SYSTEM, SMS_KEY_EVENT, DIK_SPACE, 0, true);
+        toggle_ok = on && off;
+      }
+      std::printf("  [%s] sustain key: toggle mode flips CC64\n", toggle_ok ? "ok" : "FAIL");
+      if (!toggle_ok) ++failures;
+
+      config_bind_clear_keydown(DIK_SPACE);
+      config_bind_clear_keyup(DIK_SPACE);
+      for (int i = 0; i < n_down; ++i) config_bind_add_keydown(DIK_SPACE, orig_down[i]);
+      for (int i = 0; i < n_up; ++i) config_bind_add_keyup(DIK_SPACE, orig_up[i]);
+      config_bind_set_label(DIK_SPACE, orig_label.c_str());
+      song_send_event(SM_SUSTAIN, 0, SM_VALUE_SET, 0, true);
+    }
+
     std::printf("%s (%d failure%s)\n", failures == 0 ? "UI TEST PASSED" : "UI TEST FAILED",
                 failures, failures == 1 ? "" : "s");
     engine_shutdown();
@@ -614,7 +697,12 @@ int main(int argc, char** argv) {
       editor.grab().save(shot_dialogs + "/keymap.png");
       editor.close();
 
-      KeyEditDialog keyedit(DIK_C, &window);
+      // Demo the user's actual Space binding: Sustain In_0 Flip 0 + label.
+      config_bind_clear_keydown(DIK_SPACE);
+      config_bind_clear_keyup(DIK_SPACE);
+      config_bind_add_keydown(DIK_SPACE, key_bind_t(SM_SUSTAIN, 0, SM_VALUE_FLIP, 0));
+      config_bind_set_label(DIK_SPACE, "FreePiano");
+      KeyEditDialog keyedit(DIK_SPACE, &window);
       keyedit.resize(560, 460);
       keyedit.show();
       QApplication::processEvents();

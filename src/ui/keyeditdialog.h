@@ -11,6 +11,7 @@ class QComboBox;
 class QFormLayout;
 class QLabel;
 class QLineEdit;
+class QRadioButton;
 class QSpinBox;
 
 // Edit the function bound to one computer-keyboard key.
@@ -39,6 +40,9 @@ class KeyEditDialog : public QDialog {
   QComboBox* note_ = nullptr;
   QComboBox* op_ = nullptr;
   QSpinBox* value_ = nullptr;
+  QWidget* sustain_mode_box_ = nullptr;
+  QRadioButton* sustain_hold_ = nullptr;
+  QRadioButton* sustain_toggle_ = nullptr;
   QSpinBox* velocity_ = nullptr;
   QCheckBox* group_velocity_ = nullptr;
   QLineEdit* label_ = nullptr;
