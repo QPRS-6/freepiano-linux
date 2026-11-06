@@ -1,6 +1,6 @@
 pkgbase = freepiano-linux
 	pkgdesc = Native Linux port of FreePiano 1.8 with the built-in mdaPiano instrument
-	pkgver = 1.0.10
+	pkgver = 1.0.11
 	pkgrel = 1
 	url = https://github.com/QPRS-6/freepiano-linux
 	arch = x86_64
@@ -17,7 +17,7 @@ pkgbase = freepiano-linux
 	depends = fluidsynth
 	depends = libpulse
 	depends = hicolor-icon-theme
-	source = freepiano-linux-1.0.10.tar.gz::https://github.com/QPRS-6/freepiano-linux/releases/download/v1.0.10/freepiano-linux-1.0.10.tar.gz
-	sha256sums = 1fd4ac61b4f4c52a71149e034c6ee27af6ba9360a1b929099c5201a802a69f9d
+	source = freepiano-linux-1.0.11.tar.gz::https://github.com/QPRS-6/freepiano-linux/releases/download/v1.0.11/freepiano-linux-1.0.11.tar.gz
+	sha256sums = 561a881ab7c7c63f27e13299a8a0ed1a28b85b58bce2ae042f8bc6368cdd9ad0
 
 pkgname = freepiano-linux
