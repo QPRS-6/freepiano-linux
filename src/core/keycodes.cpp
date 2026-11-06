@@ -256,6 +256,7 @@ uint8_t key_code_from_evdev(uint32_t c) {
     case 110: return DIK_INSERT;
     case 111: return DIK_DELETE;
     case 116: return DIK_POWER;
+    case 119: return DIK_PAUSE;
     case 142: return DIK_SLEEP;
     case 143: return DIK_WAKE;
     case 125: return DIK_LWIN;

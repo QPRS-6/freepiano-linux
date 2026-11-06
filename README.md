@@ -147,6 +147,7 @@ PulseAudio，请选择 “PulseAudio / PipeWire (default)”。内置合成器�
 在开发机上使用上游自带的 12 首官方 demo（`data/song/*.fpm`）与 4 个 `.map` 验证：
 
 * 12/12 `.fpm` 全部可打开、解析并正常播放；
+* 键盘扫描码回归用例（X11 `evdev+8` 与原始 evdev 两种口径）全部通过；
 * 4/4 `.map` 全部可加载（含 `flashpiano.map`、`idreampiano.map`）；
 * 自测全部通过，WAV 导出非静音（内置合成器与 FluidSynth 均验证）。
 

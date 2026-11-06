@@ -7,41 +7,64 @@
 namespace {
 
 bool is_numpad(uint8_t d) {
-  return (d >= DIK_NUMPAD7 && d <= DIK_NUMPADPERIOD) ||   // 0x47..0x53
+  return (d >= DIK_NUMPAD7 && d <= DIK_NUMPADPERIOD) ||  // 0x47..0x53
          d == DIK_NUMPADSTAR || d == DIK_NUMPADMINUS || d == DIK_NUMPADPLUS ||
          d == DIK_NUMPADENTER || d == DIK_NUMPADSLASH;
 }
 
-bool is_extended(uint8_t d) {
+// 0-9, 10 = '.', 11 = '*', 12 = '+', 13 = '-', 14 = '/', 15 = Enter
+int numpad_index(uint8_t d) {
   switch (d) {
-    case DIK_RCONTROL:
-    case DIK_RMENU:
-    case DIK_RSHIFT:
-    case DIK_INSERT:
-    case DIK_DELETE:
-    case DIK_HOME:
-    case DIK_END:
-    case DIK_PGUP:
-    case DIK_PGDN:
-    case DIK_LEFT:
-    case DIK_RIGHT:
-    case DIK_UP:
-    case DIK_DOWN:
-    case DIK_SYSRQ:
-    case DIK_PAUSE:
-    case DIK_SCROLL:
-    case DIK_LWIN:
-    case DIK_RWIN:
-    case DIK_APPS:
-      return true;
-    default:
-      return false;
+    case DIK_NUMPAD0: return 0;
+    case DIK_NUMPAD1: return 1;
+    case DIK_NUMPAD2: return 2;
+    case DIK_NUMPAD3: return 3;
+    case DIK_NUMPAD4: return 4;
+    case DIK_NUMPAD5: return 5;
+    case DIK_NUMPAD6: return 6;
+    case DIK_NUMPAD7: return 7;
+    case DIK_NUMPAD8: return 8;
+    case DIK_NUMPAD9: return 9;
+    case DIK_NUMPADPERIOD: return 10;
+    case DIK_NUMPADSTAR: return 11;
+    case DIK_NUMPADPLUS: return 12;
+    case DIK_NUMPADMINUS: return 13;
+    case DIK_NUMPADSLASH: return 14;
+    case DIK_NUMPADENTER: return 15;
+    default: return -1;
+  }
+}
+
+// What numpad key does this Qt key correspond to?  With NumLock on Qt reports
+// digits/operators; with NumLock off it reports the navigation functions.
+int qt_numpad_index(int key) {
+  if (key >= Qt::Key_0 && key <= Qt::Key_9) return key - Qt::Key_0;
+  switch (key) {
+    case Qt::Key_Period: return 10;
+    case Qt::Key_Delete: return 10;
+    case Qt::Key_Asterisk: return 11;
+    case Qt::Key_Plus: return 12;
+    case Qt::Key_Minus: return 13;
+    case Qt::Key_Slash: return 14;
+    case Qt::Key_Enter: return 15;
+    case Qt::Key_Return: return 15;
+    // NumLock off
+    case Qt::Key_Insert: return 0;
+    case Qt::Key_End: return 1;
+    case Qt::Key_Down: return 2;
+    case Qt::Key_PageDown: return 3;
+    case Qt::Key_Left: return 4;
+    case Qt::Key_Clear: return 5;
+    case Qt::Key_Right: return 6;
+    case Qt::Key_Home: return 7;
+    case Qt::Key_Up: return 8;
+    case Qt::Key_PageUp: return 9;
+    default: return -1;
   }
 }
 
 uint8_t from_qt_key(int key) {
   if (key >= Qt::Key_A && key <= Qt::Key_Z) {
-    // Qt letters are ASCII; map to the PC keyboard matrix.
     static const uint8_t letters[26] = {
       DIK_A, DIK_B, DIK_C, DIK_D, DIK_E, DIK_F, DIK_G, DIK_H, DIK_I, DIK_J, DIK_K, DIK_L, DIK_M,
       DIK_N, DIK_O, DIK_P, DIK_Q, DIK_R, DIK_S, DIK_T, DIK_U, DIK_V, DIK_W, DIK_X, DIK_Y, DIK_Z
@@ -106,21 +129,38 @@ uint8_t from_qt_key(int key) {
 
 uint8_t dik_from_qt(int qt_key, uint32_t native_scan_code, uint32_t native_vk) {
   (void)native_vk;
-  uint8_t fallback = from_qt_key(qt_key);
 
-  // Linux delivers X11 key codes (evdev + 8) on both X11 and Wayland.  Be
-  // tolerant about the offset and prefer scan codes for numpad/extended keys,
-  // where Qt's logical key cannot distinguish left/right or keypad variants.
-  uint8_t candidates[2] = {0, 0};
-  if (native_scan_code >= 9) candidates[0] = key_code_from_evdev(native_scan_code - 8);
-  candidates[1] = key_code_from_evdev(native_scan_code);
+  const uint8_t fallback = from_qt_key(qt_key);
+  // Linux deliverables: X11 key codes are evdev + 8; some toolkits report the
+  // evdev code directly.  Never blindly trust the +8 form: it aliases many
+  // keys onto numpad/extended scan codes (C -> RShift, F5 -> Numpad7, ...).
+  const uint8_t candidate_x11 = native_scan_code >= 9 ? key_code_from_evdev(native_scan_code - 8) : 0;
+  const uint8_t candidate_raw = key_code_from_evdev(native_scan_code);
 
-  for (uint8_t c : candidates) {
-    if (c && (is_numpad(c) || is_extended(c))) return c;
+  // 1) An exact match with the logical Qt key is unambiguous.
+  if (fallback && candidate_x11 == fallback) return candidate_x11;
+  if (fallback && candidate_raw == fallback) return candidate_raw;
+
+  // 2) Right-side modifiers cannot be distinguished by Qt's logical key.
+  auto right_variant = [&](uint8_t left, uint8_t right) {
+    return fallback == left && (candidate_x11 == right || candidate_raw == right);
+  };
+  if (right_variant(DIK_LSHIFT, DIK_RSHIFT)) return DIK_RSHIFT;
+  if (right_variant(DIK_LCONTROL, DIK_RCONTROL)) return DIK_RCONTROL;
+  if (right_variant(DIK_LMENU, DIK_RMENU)) return DIK_RMENU;
+  if (right_variant(DIK_LWIN, DIK_RWIN)) return DIK_RWIN;
+
+  // 3) Numpad keys: use the Qt key to pick between the +8/raw candidates.
+  const int want = qt_numpad_index(qt_key);
+  if (want >= 0) {
+    if (numpad_index(candidate_x11) == want) return candidate_x11;
+    if (numpad_index(candidate_raw) == want) return candidate_raw;
   }
+  if (is_numpad(candidate_x11)) return candidate_x11;
+  if (is_numpad(candidate_raw)) return candidate_raw;
+
+  // 4) Fall back to the logical key, then to whatever the scan code says.
   if (fallback) return fallback;
-  for (uint8_t c : candidates) {
-    if (c) return c;
-  }
-  return 0;
+  if (candidate_x11) return candidate_x11;
+  return candidate_raw;
 }

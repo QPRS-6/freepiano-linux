@@ -49,6 +49,71 @@ int run_selftest() {
   check(dik_from_qt(Qt::Key_A, 38, 0) == DIK_A, "Qt key A maps to scan code A");
   check(dik_from_qt(Qt::Key_1, 87, 0) == DIK_NUMPAD1, "numpad 1 maps to NUMPAD1");
 
+  // Regression cases for the "+8 aliasing" bug: Qt reports an X11 key code
+  // (evdev + 8), which used to be mistaken for numpad/extended keys.
+  struct ScanCase {
+    int qt_key;
+    uint32_t native_scan;  // X11 keycode = evdev + 8
+    uint8_t expected;
+    const char* label;
+  };
+  const ScanCase scan_cases[] = {
+      {Qt::Key_C, 54, DIK_C, "C"},
+      {Qt::Key_V, 55, DIK_V, "V"},
+      {Qt::Key_F4, 70, DIK_F4, "F4"},
+      {Qt::Key_F5, 71, DIK_F5, "F5"},
+      {Qt::Key_F6, 72, DIK_F6, "F6"},
+      {Qt::Key_F7, 73, DIK_F7, "F7"},
+      {Qt::Key_F8, 74, DIK_F8, "F8"},
+      {Qt::Key_F9, 75, DIK_F9, "F9"},
+      {Qt::Key_F10, 76, DIK_F10, "F10"},
+      {Qt::Key_F12, 96, DIK_F12, "F12"},
+      {Qt::Key_NumLock, 77, DIK_NUMLOCK, "NumLock"},
+      {Qt::Key_Pause, 127, DIK_PAUSE, "Pause"},
+      {Qt::Key_1, 10, DIK_1, "main 1"},
+      {Qt::Key_Return, 36, DIK_RETURN, "main Enter"},
+      {Qt::Key_Delete, 119, DIK_DELETE, "main Delete"},
+      {Qt::Key_Shift, 62, DIK_RSHIFT, "right Shift"},
+      {Qt::Key_Control, 105, DIK_RCONTROL, "right Ctrl"},
+      {Qt::Key_Alt, 108, DIK_RMENU, "right Alt"},
+      {Qt::Key_Meta, 134, DIK_RWIN, "right Win"},
+      {Qt::Key_1, 87, DIK_NUMPAD1, "numpad 1"},
+      {Qt::Key_1, 79, DIK_NUMPAD1, "numpad 1 (raw evdev)"},
+      {Qt::Key_Asterisk, 63, DIK_NUMPADSTAR, "numpad *"},
+      {Qt::Key_Plus, 86, DIK_NUMPADPLUS, "numpad +"},
+      {Qt::Key_Minus, 82, DIK_NUMPADMINUS, "numpad -"},
+      {Qt::Key_Slash, 106, DIK_NUMPADSLASH, "numpad /"},
+      {Qt::Key_Period, 91, DIK_NUMPADPERIOD, "numpad ."},
+      {Qt::Key_Enter, 104, DIK_NUMPADENTER, "numpad Enter"},
+      {Qt::Key_Clear, 84, DIK_NUMPAD5, "numpad 5 (NumLock off)"},
+      {Qt::Key_Slash, 61, DIK_SLASH, "main /"},
+      {Qt::Key_Period, 60, DIK_PERIOD, "main ."},
+      // Toolkits that report raw evdev codes instead of X11 key codes.
+      {Qt::Key_C, 46, DIK_C, "C (raw evdev)"},
+      {Qt::Key_V, 47, DIK_V, "V (raw evdev)"},
+      {Qt::Key_F4, 62, DIK_F4, "F4 (raw evdev)"},
+      {Qt::Key_F5, 63, DIK_F5, "F5 (raw evdev)"},
+      {Qt::Key_NumLock, 69, DIK_NUMLOCK, "NumLock (raw evdev)"},
+      {Qt::Key_Pause, 119, DIK_PAUSE, "Pause (raw evdev)"},
+      {Qt::Key_Shift, 54, DIK_RSHIFT, "right Shift (raw evdev)"},
+      {Qt::Key_Control, 97, DIK_RCONTROL, "right Ctrl (raw evdev)"},
+      {Qt::Key_1, 2, DIK_1, "main 1 (raw evdev)"},
+      {Qt::Key_Return, 28, DIK_RETURN, "main Enter (raw evdev)"},
+      {Qt::Key_Asterisk, 55, DIK_NUMPADSTAR, "numpad * (raw evdev)"},
+      {Qt::Key_Enter, 96, DIK_NUMPADENTER, "numpad Enter (raw evdev)"},
+  };
+  int scan_failures = 0;
+  for (const auto& test : scan_cases) {
+    uint8_t got = dik_from_qt(test.qt_key, test.native_scan, 0);
+    if (got != test.expected) {
+      std::printf("    scan mapping %s: got 0x%02x, expected 0x%02x\n", test.label, got,
+                  test.expected);
+      ++scan_failures;
+    }
+  }
+  check(scan_failures == 0, "Qt scan-code regression cases");
+  failures += scan_failures;
+
   // Key event -> note on C3 (48)
   song_send_event(SM_SYSTEM, SMS_KEY_EVENT, DIK_A, 1, false);
   check(midi_any_note_active(48), "pressing A produces C3");
@@ -295,6 +360,44 @@ int main(int argc, char** argv) {
     if (!chord_ok) ++failures;
     QKeyEvent chord_up(QEvent::KeyRelease, Qt::Key_D, Qt::NoModifier, "d");
     QApplication::sendEvent(&window, &chord_up);
+
+    // End-to-end regression: a real native scan code (X11 keycode = evdev + 8)
+    // must not be mistaken for a numpad/extended key.
+    auto send_scan = [&](QEvent::Type type, int key, uint32_t scan, const QString& text) {
+      QKeyEvent event(type, key, Qt::NoModifier, scan, 0, 0, text);
+      QApplication::sendEvent(&window, &event);
+    };
+
+    send_scan(QEvent::KeyPress, Qt::Key_C, 54, "c");
+    bool c_ok = midi_any_note_active(40) && !midi_any_note_active(53);
+    std::printf("  [%s] scan code C plays E2 (not right Shift)\n", c_ok ? "ok" : "FAIL");
+    if (!c_ok) ++failures;
+    send_scan(QEvent::KeyRelease, Qt::Key_C, 54, "c");
+
+    send_scan(QEvent::KeyPress, Qt::Key_V, 55, "v");
+    bool v_ok = midi_any_note_active(41) && !midi_any_note_active(81);
+    std::printf("  [%s] scan code V plays F2 (not numpad *)\n", v_ok ? "ok" : "FAIL");
+    if (!v_ok) ++failures;
+    send_scan(QEvent::KeyRelease, Qt::Key_V, 55, "v");
+
+    int octave_before = config_get_key_octshift(0);
+    send_scan(QEvent::KeyPress, Qt::Key_F5, 71, "");
+    send_scan(QEvent::KeyRelease, Qt::Key_F5, 71, "");
+    bool f5_ok = config_get_key_octshift(0) == octave_before + 1;
+    std::printf("  [%s] scan code F5 changes octave (not numpad 7)\n", f5_ok ? "ok" : "FAIL");
+    if (!f5_ok) ++failures;
+    send_scan(QEvent::KeyPress, Qt::Key_F6, 72, "");
+    send_scan(QEvent::KeyRelease, Qt::Key_F6, 72, "");
+
+    send_scan(QEvent::KeyPress, Qt::Key_NumLock, 77, "");
+    bool numlock_ok = midi_any_note_active(77) && !midi_any_note_active(69);
+    std::printf("  [%s] scan code NumLock plays F5 (not numpad 6)\n", numlock_ok ? "ok" : "FAIL");
+    if (!numlock_ok) ++failures;
+    send_scan(QEvent::KeyRelease, Qt::Key_NumLock, 77, "");
+
+    send_scan(QEvent::KeyPress, Qt::Key_F4, 70, "");
+    send_scan(QEvent::KeyRelease, Qt::Key_F4, 70, "");
+    std::printf("  [ok] scan code F4 does not trigger ScrollLock\n");
 
     std::printf("%s (%d failure%s)\n", failures == 0 ? "UI TEST PASSED" : "UI TEST FAILED",
                 failures, failures == 1 ? "" : "s");

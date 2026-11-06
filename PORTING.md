@@ -43,9 +43,14 @@ FreePiano 的所有脚本、录音事件都是 `(a, b, c, d)` 四字节元组。
 （`src/core/keycodes.h`），因此 `.map` 里的数字键号、`.fpm` 里记录的键事件仍然有效。
 Qt 键事件通过 `dik_from_qt()` 转换成扫描码：
 
-* Linux evdev 键码 → 扫描码（X11/Wayland 的 `nativeScanCode` 允许带 `+8` 偏移）；
-* 数字小键盘、左右 Ctrl/Alt/Shift、方向键等扩展键优先用扫描码，避免 Qt 逻辑键的歧义；
-* 其余按键回退到 Qt::Key 表，保证在没有有效扫描码时仍能演奏。
+* Qt 的 `nativeScanCode` 在不同平台/后端可能是 X11 keycode（evdev + 8），也可能是原始 evdev；
+  因此同时计算两个候选，并**先用 Qt 逻辑键做精确匹配**；
+* 只有 Qt 逻辑键无法区分时才使用扫描码：左右 Ctrl/Alt/Shift/Win 用扫描码区分左右；
+  小键盘用「Qt 键 → 小键盘索引」与两个候选比对（同时支持 NumLock 开/关）；
+* 最后才回退到 Qt::Key 表。
+
+> 早期版本把「+8 候选恰好是小键盘/扩展键」当成真键，导致 C→右 Shift、F5→小键盘 7 等问题；
+> 现在由 `--selftest` / `--test-ui` 中的回归用例覆盖。
 
 ### `.fpm` 格式
 
