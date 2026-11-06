@@ -707,27 +707,33 @@ int main(int argc, char** argv) {
     bool progress_follows = song_is_playing() && progress_slider->value() >= 290 &&
                             progress_slider->value() <= 350;
 
-    // Dragging the slider seeks; the release handler starts playback at the
-    // requested position.
-    progress_slider->setValue(600);
-    QMetaObject::invokeMethod(&window, "onSeekReleased", Qt::DirectConnection);
-    QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
-    bool seek_ui_ok = song_is_playing() && song_get_timer() >= 590 &&
-                      song_get_timer() <= 610 && progress_slider->value() >= 590 &&
-                      progress_slider->value() <= 610;
-    std::printf("  [%s] dragging the progress slider seeks\n", seek_ui_ok ? "ok" : "FAIL");
-    if (!seek_ui_ok) ++failures;
-
     pause_button->click();
     QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
     bool pause_ui_ok = song_is_paused() && progress_row->isVisible() &&
-                       progress_slider->value() >= 590 && progress_slider->value() <= 610 &&
+                       progress_slider->value() >= 290 && progress_slider->value() <= 350 &&
                        midi_any_note_active(60);
 
     play_button->click();
     QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
-    bool resume_ui_ok = song_is_playing() && progress_slider->value() >= 590 &&
-                        progress_slider->value() <= 610 && midi_any_note_active(60);
+    bool resume_ui_ok = song_is_playing() && progress_slider->value() >= 290 &&
+                        progress_slider->value() <= 350 && midi_any_note_active(60);
+
+    // Clicking the empty part of the slider (not the handle) must jump to the
+    // clicked position and seek there.
+    QPointF click_pos(progress_slider->width() * 0.60, progress_slider->height() / 2.0);
+    QPointF global_pos(progress_slider->mapToGlobal(click_pos.toPoint()));
+    QMouseEvent mouse_press(QEvent::MouseButtonPress, click_pos, global_pos, Qt::LeftButton,
+                            Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(progress_slider, &mouse_press);
+    QMouseEvent mouse_release(QEvent::MouseButtonRelease, click_pos, global_pos, Qt::LeftButton,
+                              Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(progress_slider, &mouse_release);
+    QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
+    bool seek_ui_ok = song_is_playing() && song_get_timer() >= 550 &&
+                      song_get_timer() <= 650 && progress_slider->value() >= 550 &&
+                      progress_slider->value() <= 650 && !midi_any_note_active(60);
+    std::printf("  [%s] clicking the progress slider seeks\n", seek_ui_ok ? "ok" : "FAIL");
+    if (!seek_ui_ok) ++failures;
 
     stop_button->click();
     song_close();

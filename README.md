@@ -28,7 +28,7 @@
 * **音频输出**：PortAudio（ALSA/JACK）+ PulseAudio / PipeWire 后端，自动回退。
 * **MIDI**：ALSA sequencer MIDI 输入（外部 MIDI 键盘，支持通道映射）与 MIDI 输出。
 * **可拖动播放进度条**：位于屏幕键盘和钢琴之间；有乐曲时显示播放 / 暂停 / 停止、当前进度
-  和 0.5x–2.0x 倍速，拖动进度条可跳转，没有乐曲时整行自动隐藏。
+  和 0.5x–2.0x 倍速，拖动进度条可跳转（不会重触发中间音符），没有乐曲时整行自动隐藏。
 * **录制 / 播放 / 导出 WAV**：录制键位/延音事件，保存为 `.fpm`；可离线渲染导出 16-bit WAV。
 * **多分组、移调、跟随曲调、延音、力度、八度**：与原版脚本语义一致。
 * **键位编辑器**：以纯文本方式编辑 `.map`，实时应用、另存。
@@ -185,7 +185,7 @@ PulseAudio，请选择 “PulseAudio / PipeWire (default)”。默认的 mdaPian
 ## AUR
 
 `packaging/aur/` 中已经准备好 AUR 包（`PKGBUILD` + `.SRCINFO`，包名 `freepiano-linux`，
-版本 1.0.8），并已用 `makepkg` 本地构建验证。提交到 AUR 后可以：
+版本 1.0.9），并已用 `makepkg` 本地构建验证。提交到 AUR 后可以：
 
 ```bash
 yay -S freepiano-linux
@@ -202,7 +202,7 @@ GitHub Releases 也提供构建好的 pacman 包（已包含 `.desktop`、图标
 
 ```bash
 # 从 https://github.com/QPRS-6/freepiano-linux/releases 下载后
-sudo pacman -U freepiano-linux-1.0.8-1-x86_64.pkg.tar.zst
+sudo pacman -U freepiano-linux-1.0.9-1-x86_64.pkg.tar.zst
 ```
 
 该包未做 GPG 签名，`pacman -U` 可能会提示确认；也可以直接用上面的 AUR 方式本地编译。

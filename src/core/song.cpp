@@ -31,6 +31,7 @@ static std::vector<song_event_t> song_events;
 static int play_position = -1;
 static int record_position = -1;
 static bool playback_paused = false;
+static bool seek_suppress_notes = false;
 static int song_event_count = 0;
 
 static double song_timer = 0;
@@ -277,6 +278,19 @@ void song_send_event(byte a, byte b, byte c, byte d, bool record) {
     config_bind_set_color(keyboard_color_key_code, color);
     keyboard_color_key_code = 0;
     return;
+  }
+
+  if (seek_suppress_notes) {
+    // Seeking reconstructs controllers, programs and key maps, but must not
+    // re-trigger notes from the skipped part of the song.  That produces a
+    // loud chord when the target position is in the middle of sustained notes.
+    if (a == SM_NOTE_ON || a == SM_NOTE_OFF || a == SM_NOTE_PRESSURE) return;
+    if (a == SM_SYSTEM && b == SMS_KEY_EVENT) return;
+    byte message = a & SM_MIDI_MASK_MSG;
+    if (message == SM_MIDI_NOTEON || message == SM_MIDI_NOTEOFF ||
+        message == SM_MIDI_PRESSURE) {
+      return;
+    }
   }
 
   if (a == SM_SYSTEM) {
@@ -707,12 +721,23 @@ void song_seek(int milliseconds) {
   const double speed = song_play_speed > 0 ? song_play_speed : 1.0;
 
   playback_paused = false;
+  if (target == 0) {
+    song_start_playback();
+    return;
+  }
+
+  // Skip audible note events while fast-forwarding.  Controllers, programs,
+  // key maps and labels are still processed, so subsequent notes play with the
+  // right state, but notes that were already held at the target are not
+  // re-attacked as one loud chord.
+  seek_suppress_notes = true;
   song_start_playback();
-  if (play_position >= 0 && target > 0) {
+  if (play_position >= 0) {
     // song_update() multiplies by song_play_speed; compensate so the seek
     // lands at the requested playback position.
     song_update((double)target / speed);
   }
+  seek_suppress_notes = false;
 }
 
 int song_get_length() {

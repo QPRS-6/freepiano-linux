@@ -33,6 +33,7 @@ class MainWindow : public QMainWindow {
   void closeEvent(QCloseEvent* event) override;
   void showEvent(QShowEvent* event) override;
   void resizeEvent(QResizeEvent* event) override;
+  bool eventFilter(QObject* watched, QEvent* event) override;
   void focusOutEvent(QFocusEvent* event) override;
 
  private slots:

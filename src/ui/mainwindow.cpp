@@ -28,6 +28,7 @@
 #include <QLabel>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QResizeEvent>
 #include <QShowEvent>
@@ -35,6 +36,7 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QStatusBar>
+#include <QStyle>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -247,11 +249,7 @@ void MainWindow::buildControls() {
       "QSlider::sub-page:horizontal{background:#ff9d2e;border-radius:3px;}"
       "QSlider::handle:horizontal{width:14px;margin:-4px 0;border-radius:7px;"
       "background:#f0f0f0;}");
-  connect(progress_slider_, &QSlider::sliderPressed, this, [this] { seeking_ = true; });
-  connect(progress_slider_, &QSlider::sliderMoved, this, [this](int value) {
-    if (progress_elapsed_) progress_elapsed_->setText(format_time(value));
-  });
-  connect(progress_slider_, &QSlider::sliderReleased, this, &MainWindow::onSeekReleased);
+  progress_slider_->installEventFilter(this);
 
   progress_total_ = new QLabel("00:00.0", progress_row_);
   progress_total_->setStyleSheet("color:#9a9aa2;font-family:monospace;");
@@ -645,6 +643,52 @@ void MainWindow::onPlay() {
   }
   updateWindowTitle();
   setFocus();
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+  if (watched != progress_slider_ || !progress_slider_ || !progress_slider_->isVisible()) {
+    return QMainWindow::eventFilter(watched, event);
+  }
+
+  auto value_at = [this](const QPointF& pos) {
+    int width = std::max(1, progress_slider_->width());
+    int x = std::clamp((int)pos.x(), 0, width - 1);
+    return QStyle::sliderValueFromPosition(progress_slider_->minimum(),
+                                           progress_slider_->maximum(), x, width);
+  };
+
+  switch (event->type()) {
+    case QEvent::MouseButtonPress: {
+      auto* mouse = static_cast<QMouseEvent*>(event);
+      if (mouse->button() != Qt::LeftButton) break;
+      seeking_ = true;
+      progress_slider_->grabMouse();
+      int value = value_at(mouse->position());
+      progress_slider_->setValue(value);
+      if (progress_elapsed_) progress_elapsed_->setText(format_time(value));
+      return true;
+    }
+    case QEvent::MouseMove: {
+      auto* mouse = static_cast<QMouseEvent*>(event);
+      if (!seeking_ || !(mouse->buttons() & Qt::LeftButton)) break;
+      int value = value_at(mouse->position());
+      progress_slider_->setValue(value);
+      if (progress_elapsed_) progress_elapsed_->setText(format_time(value));
+      return true;
+    }
+    case QEvent::MouseButtonRelease: {
+      auto* mouse = static_cast<QMouseEvent*>(event);
+      if (mouse->button() != Qt::LeftButton || !seeking_) break;
+      int value = value_at(mouse->position());
+      progress_slider_->setValue(value);
+      progress_slider_->releaseMouse();
+      onSeekReleased();
+      return true;
+    }
+    default:
+      break;
+  }
+  return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::onSeekReleased() {
