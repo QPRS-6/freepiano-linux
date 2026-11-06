@@ -20,6 +20,7 @@ std::vector<std::string> engine_midi_output_ports();
 std::vector<std::string> engine_midi_input_ports();
 
 void engine_select_audio_device(const std::string& device);
+void engine_select_instrument_mda_piano();
 void engine_select_instrument_builtin();
 void engine_select_soundfont(const std::string& path);
 void engine_select_midi_output(const std::string& port);

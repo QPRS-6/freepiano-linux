@@ -67,6 +67,7 @@ class MainWindow : public QMainWindow {
   QTimer* timer_ = nullptr;
 
   QLabel* instrument_label_ = nullptr;
+  QLabel* program_label_ = nullptr;
   QLabel* sustain_label_ = nullptr;
   QLabel* time_label_ = nullptr;
   QLabel* status_label_ = nullptr;

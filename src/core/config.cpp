@@ -155,9 +155,11 @@ static const name_t controller_names[] = {
 static const name_t instrument_type_names[] = {
   { "None", INSTRUMENT_TYPE_NONE },
   { "Builtin", INSTRUMENT_TYPE_BUILTIN },
+  { "MdaPiano", INSTRUMENT_TYPE_MDA_PIANO },
+  { "Piano", INSTRUMENT_TYPE_MDA_PIANO },
   { "SoundFont", INSTRUMENT_TYPE_SOUNDFONT },
   { "SF2", INSTRUMENT_TYPE_SOUNDFONT },
-  { "VSTI", INSTRUMENT_TYPE_BUILTIN },  // legacy Windows configs
+  { "VSTI", INSTRUMENT_TYPE_MDA_PIANO },  // legacy Windows configs (mdaPiano)
   { "MIDI", INSTRUMENT_TYPE_NONE },
 };
 
@@ -216,7 +218,7 @@ static uint32_t setting_count = 1;
 static setting_t clipboard_setting;
 
 struct global_setting_t {
-  int instrument_type = INSTRUMENT_TYPE_BUILTIN;
+  int instrument_type = INSTRUMENT_TYPE_MDA_PIANO;
   std::string instrument_path;
   std::string output_device;
   int output_type = OUTPUT_TYPE_AUTO;
@@ -652,7 +654,7 @@ void config_set_output_delay(int value) { fp_lock lock; g.output_delay = clamp_v
 
 int config_select_instrument(int type, const std::string& name) {
   fp_lock lock;
-  if (type < INSTRUMENT_TYPE_NONE || type > INSTRUMENT_TYPE_SOUNDFONT) type = INSTRUMENT_TYPE_BUILTIN;
+  if (type < INSTRUMENT_TYPE_NONE || type > INSTRUMENT_TYPE_MDA_PIANO) type = INSTRUMENT_TYPE_MDA_PIANO;
   g.instrument_type = type;
   g.instrument_path = name;
   return 0;
@@ -1497,7 +1499,7 @@ int config_load(const std::string& filename) {
   config_set_setting_group_count(1);
   config_clear_key_setting();
   g.keymap.clear();
-  g.instrument_type = INSTRUMENT_TYPE_BUILTIN;
+  g.instrument_type = INSTRUMENT_TYPE_MDA_PIANO;
   g.instrument_path.clear();
   g.output_volume = 100;
   g.midi_inputs.clear();
@@ -1510,12 +1512,16 @@ int config_load(const std::string& filename) {
   } else {
 
   std::string line;
+  bool has_config_version = false;
   while (std::getline(file, line)) {
     std::string s = trim(line);
     if (s.empty() || s[0] == '#') continue;
     Parser p(s.c_str());
 
-    if (p.word("instrument")) {
+    if (p.word("config-version")) {
+      int version = 0;
+      if (p.number(&version)) has_config_version = true;
+    } else if (p.word("instrument")) {
       if (p.word("type")) {
         uint32_t v = 0;
         p.value(instrument_type_names, ARRAY_COUNT(instrument_type_names), &v);
@@ -1591,6 +1597,14 @@ int config_load(const std::string& filename) {
     }
   }
 
+  // Configs written before the mdaPiano port defaulted to the simple built-in
+  // synth.  Upgrade that implicit default once; an explicit choice made after
+  // this version is preserved via config-version.
+  if (!has_config_version && g.instrument_type == INSTRUMENT_TYPE_BUILTIN &&
+      g.instrument_path.empty()) {
+    g.instrument_type = INSTRUMENT_TYPE_MDA_PIANO;
+  }
+
   }  // end settings file
 
   }  // lock scope
@@ -1608,12 +1622,14 @@ int config_save(const std::string& filename) {
   std::ofstream file(path, std::ios::binary | std::ios::trunc);
   if (!file) return -1;
 
-  const char* type_name = "Builtin";
+  const char* type_name = "MdaPiano";
   switch (g.instrument_type) {
     case INSTRUMENT_TYPE_NONE: type_name = "None"; break;
+    case INSTRUMENT_TYPE_BUILTIN: type_name = "Builtin"; break;
     case INSTRUMENT_TYPE_SOUNDFONT: type_name = "SoundFont"; break;
-    default: type_name = "Builtin"; break;
+    default: type_name = "MdaPiano"; break;
   }
+  file << "config-version 2\n";
   file << "instrument type " << type_name << "\n";
   if (!g.instrument_path.empty()) file << "instrument path " << g.instrument_path << "\n";
   file << "output type " << (g.output_type == OUTPUT_TYPE_NULL ? "None" : "PortAudio") << "\n";

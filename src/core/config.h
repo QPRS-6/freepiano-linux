@@ -12,6 +12,7 @@
 #define INSTRUMENT_TYPE_NONE        0  // external MIDI only
 #define INSTRUMENT_TYPE_BUILTIN     1  // built-in software synthesizer
 #define INSTRUMENT_TYPE_SOUNDFONT   2  // FluidSynth + .sf2
+#define INSTRUMENT_TYPE_MDA_PIANO   3  // built-in mdaPiano (FreePiano default)
 
 #define OUTPUT_TYPE_AUTO            0
 #define OUTPUT_TYPE_PORTAUDIO       1

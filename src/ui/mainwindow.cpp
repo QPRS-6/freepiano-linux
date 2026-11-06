@@ -160,7 +160,8 @@ void MainWindow::buildControls() {
     bar->addWidget(spin);
   }
 
-  bar->addWidget(control_label(fp_tr("音色", "Program"), central));
+  program_label_ = control_label(fp_tr("音色", "Program"), central);
+  bar->addWidget(program_label_);
   program_spin_ = new QSpinBox(central);
   program_spin_->setRange(0, 127);
   program_spin_->setFixedWidth(56);
@@ -237,7 +238,32 @@ void MainWindow::buildMenus() {
   keyboard->addAction(fp_tr("设置...", "Settings..."), QKeySequence("Ctrl+,"), this, &MainWindow::onSettings);
 
   QMenu* instrument = menuBar()->addMenu(fp_tr("乐器", "Instrument"));
-  instrument->addAction(fp_tr("使用内置合成器", "Use built-in synthesizer"), this, [this] {
+  instrument->addAction(fp_tr("使用内置 mdaPiano 钢琴（FreePiano 默认）",
+                              "Use built-in mdaPiano (FreePiano default)"),
+                        this, [this] {
+                          engine_select_instrument_mda_piano();
+                          syncControls();
+                          updateStatusBar();
+                        });
+
+  QMenu* presets = instrument->addMenu(fp_tr("mdaPiano 预设", "mdaPiano presets"));
+  static const char* kPresetNames[] = {
+      "mda Piano", "Plain Piano", "Compressed Piano", "Dance Piano",
+      "Concert Piano", "Dark Piano", "School Piano", "Broken Piano"};
+  for (int i = 0; i < 8; ++i) {
+    QAction* action = presets->addAction(QString::fromLatin1(kPresetNames[i]));
+    connect(action, &QAction::triggered, this, [this, i] {
+      engine_select_instrument_mda_piano();
+      int out_ch = config_get_output_channel(0);
+      song_output_event((byte)(SM_MIDI_PROGRAM | out_ch), (byte)i, 0, 0);
+      syncControls();
+      updateStatusBar();
+      statusBar()->showMessage(
+          fp_tr("mdaPiano 预设: ", "mdaPiano preset: ") + QString::fromLatin1(kPresetNames[i]), 3000);
+    });
+  }
+
+  instrument->addAction(fp_tr("使用内置 GM 合成器", "Use built-in GM synthesizer"), this, [this] {
     engine_select_instrument_builtin();
     syncControls();
     updateStatusBar();
@@ -337,8 +363,17 @@ void MainWindow::syncControls() {
   oct0_spin_->setValue(config_get_key_octshift(0));
   oct1_spin_->setValue(config_get_key_octshift(1));
   int out_ch = config_get_output_channel(0);
+  int instrument_type = config_get_instrument_type();
+  if (instrument_type == INSTRUMENT_TYPE_MDA_PIANO) {
+    program_spin_->setRange(0, 7);
+    program_label_->setText(fp_tr("预设", "Preset"));
+  } else {
+    program_spin_->setRange(0, 127);
+    program_label_->setText(fp_tr("音色", "Program"));
+  }
   int program = config_get_program((uint8_t)(SM_OUTPUT_0 + out_ch));
-  program_spin_->setValue(program >= 0 && program < 128 ? program : 0);
+  if (program < 0 || program > program_spin_->maximum()) program = 0;
+  program_spin_->setValue(program);
   volume_slider_->setValue(config_get_output_volume());
 
   instrument_label_->setText(QString::fromStdString(engine_instrument_name()));
@@ -380,9 +415,13 @@ void MainWindow::tick() {
 
   int out_ch = config_get_output_channel(0);
   int program = config_get_program((uint8_t)(SM_OUTPUT_0 + out_ch));
-  if (program >= 0 && program < 128 && program != program_spin_->value()) {
-    QSignalBlocker block(program_spin_);
-    program_spin_->setValue(program);
+  int max_program = config_get_instrument_type() == INSTRUMENT_TYPE_MDA_PIANO ? 7 : 127;
+  if (program >= 0 && program < 128) {
+    if (program > max_program) program = 0;
+    if (program != program_spin_->value()) {
+      QSignalBlocker block(program_spin_);
+      program_spin_->setValue(program);
+    }
   }
   if (config_get_output_volume() != volume_slider_->value()) {
     QSignalBlocker block(volume_slider_);

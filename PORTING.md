@@ -14,7 +14,7 @@ DirectSound/WASAPI/ASIO 音频、VST2 宿主、WinMM MIDI、以及用 x264/faac/
 | `src/song.cpp`（事件引擎、录音、`.fpm`、`.lyt`） | `src/core/song.cpp`（`.fpm` 完整移植；`.lyt` 未实现） |
 | `src/keyboard.cpp`（低级键盘钩子、自动 NoteOff） | `src/core/keyboard.cpp` + Qt 键事件（`src/ui/qtkeymap.cpp`） |
 | `src/midi.cpp`（WinMM MIDI 与 VST 路由） | `src/core/midi.cpp`（统一事件分发，去掉 WinMM） |
-| `src/synthesizer_vst.cpp` + `src/vst/*` | `src/core/synth_builtin.cpp`（内置合成器）+ `src/core/fluidsynth_engine.cpp`（SoundFont） |
+| `src/synthesizer_vst.cpp` + `src/vst/*` | `src/core/synth_mda_piano.cpp`（内置 mdaPiano，默认）+ `synth_builtin.cpp`（GM 合成器）+ `fluidsynth_engine.cpp`（SoundFont） |
 | `src/output_dsound/wasapi/asio.cpp` | `src/core/audio.cpp`（PortAudio + PulseAudio/PipeWire） |
 | `-`（Windows 的 MIDI 设备） | `src/core/alsa_midi.cpp`（ALSA sequencer 输入/输出） |
 | `src/display.cpp`（Direct3D 皮肤、按键渲染） | `src/ui/keyboardwidget.cpp`、`pianowidget.cpp`（Qt 绘制，沿用原版键位坐标） |
@@ -93,6 +93,21 @@ zlib(compressed_size)  ->  16-byte events {double time; u8 a,b,c,d;}
 上游工程本身是 GBK，但用户键位文件可能是 UTF-8 或 GBK。加载 `.map` 时先检测 UTF-8，
 非法时用 `iconv` 按 GB18030 转成 UTF-8，再解析中文指令。
 
+## 内置 mdaPiano 音源
+
+FreePiano 的 Windows 发行版默认加载 `vsti/mdaPiano.dll`。该插件由 Paul Kellett 以
+MIT（或 GPL）许可发布，Linux 上无需 VST 宿主即可使用：
+
+* `src/core/synth_mda_piano.cpp` 是 DSP 的原生移植：15 个 keygroup、8 个原厂预设、
+  32 复音、采样插值、包络、muffle 滤波、立体声模拟；
+* `src/core/mda_piano_data.h` 是原始 16-bit 采样表（约 1.17 MB 采样，源码表约 3.2 MB 文本，已编入二进制）；
+* 行为与原 VST 一致：CC1/CC67 控制 muffle，CC7 音量，CC64/66 延音，Program 0–7 切换预设；
+  原插件不支持 pitch bend，移植同样忽略；
+* 默认音源改为 mdaPiano；旧配置中的 `instrument type VSTI` 会映射到它，旧版本写下的
+  Builtin 默认值会迁移一次（配置带 `config-version` 后不再自动改动）。
+
+移植代码与采样表按 MIT 许可分发，见 `LICENSES/mdaPiano-MIT.txt`；其余代码仍为 BSD-3-Clause。
+
 ## 平台相关替换
 
 ### 音频
@@ -109,9 +124,9 @@ MIDI 事件 → midi_output_event()
 2. **PulseAudio / PipeWire**（libpulse-simple）：没有 ALSA 声卡或 PortAudio 打开失败时回退；
 3. **静音计时器**：全部失败时仍然按真实时间推进播放/录音。
 
-内置合成器不依赖任何资产：12 种 GM 音色模型（钢琴、电钢、风琴、弦乐、Pad、铜管、长笛、
-钟琴、拨弦、贝斯、Lead、音效），带 ADSR、力度亮度、延音踏板、弯音、通道音量/表情/声像、
-64 复音与声部抢占。
+内置 mdaPiano 是默认音源，采样已编入二进制；内置 GM 合成器作为备用，不依赖任何资产：
+12 种 GM 音色模型（钢琴、电钢、风琴、弦乐、Pad、铜管、长笛、钟琴、拨弦、贝斯、Lead、音效），
+带 ADSR、力度亮度、延音踏板、弯音、通道音量/表情/声像、64 复音与声部抢占。
 
 ### MIDI
 

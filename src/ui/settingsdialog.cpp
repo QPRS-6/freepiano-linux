@@ -72,8 +72,14 @@ void SettingsDialog::buildUi() {
 
   auto* inst_box = new QGroupBox(fp_tr("内部音源", "Internal instrument"), inst_page);
   auto* inst_form = new QFormLayout(inst_box);
-  builtin_ = new QRadioButton(fp_tr("内置合成器（无需外部文件）", "Built-in synthesizer (no external file)"), inst_box);
+  mda_piano_ = new QRadioButton(
+      fp_tr("内置 mdaPiano 钢琴（FreePiano 默认音色，推荐）",
+            "Built-in mdaPiano piano (FreePiano's default, recommended)"),
+      inst_box);
+  builtin_ = new QRadioButton(
+      fp_tr("内置 GM 合成器（128 种音色模型）", "Built-in GM synthesizer (128 programs)"), inst_box);
   soundfont_ = new QRadioButton(fp_tr("SoundFont (.sf2 / .sf3)", "SoundFont (.sf2 / .sf3)"), inst_box);
+  inst_form->addRow(mda_piano_);
   inst_form->addRow(builtin_);
   inst_form->addRow(soundfont_);
 
@@ -91,10 +97,10 @@ void SettingsDialog::buildUi() {
   inst_form->addRow(fp_tr("当前音源", "Current"), inst_status);
 
   auto* inst_note = new QLabel(
-      fp_tr("FreePiano 在 Windows 上使用 VSTi 插件；Linux 版用内置合成器或 SoundFont 代替，"
-            "推荐安装 FluidR3_GM / GeneralUser 等 GM 音色库获得钢琴音色。",
-            "The Windows version hosts VSTi plug-ins. On Linux, use the built-in synthesizer or a "
-            "SoundFont (e.g. FluidR3_GM / GeneralUser GS) for a realistic piano."),
+      fp_tr("mdaPiano 是 Windows 版 FreePiano 默认使用的 VSTi，已按 MIT 许可移植并内置，"
+            "无需安装任何外部文件。SoundFont 仅作为可选的其它音色。",
+            "mdaPiano is the VSTi the Windows build uses by default; it is ported and built in "
+            "under the MIT licence, so no external files are required. SoundFont remains optional."),
       inst_box);
   inst_note->setWordWrap(true);
   inst_note->setStyleSheet("color:#777;");
@@ -106,6 +112,9 @@ void SettingsDialog::buildUi() {
 
   connect(browse, &QPushButton::clicked, this, &SettingsDialog::browseSoundfont);
   connect(builtin_, &QRadioButton::toggled, this, [this](bool on) {
+    if (on) soundfont_path_->setEnabled(false);
+  });
+  connect(mda_piano_, &QRadioButton::toggled, this, [this](bool on) {
     if (on) soundfont_path_->setEnabled(false);
   });
   connect(soundfont_, &QRadioButton::toggled, this, [this](bool on) {
@@ -208,8 +217,11 @@ void SettingsDialog::loadValues() {
 
   volume_->setValue(config_get_output_volume());
 
-  bool is_sf2 = config_get_instrument_type() == INSTRUMENT_TYPE_SOUNDFONT;
-  builtin_->setChecked(!is_sf2);
+  int instrument_type = config_get_instrument_type();
+  bool is_sf2 = instrument_type == INSTRUMENT_TYPE_SOUNDFONT;
+  mda_piano_->setChecked(instrument_type == INSTRUMENT_TYPE_MDA_PIANO ||
+                         instrument_type == INSTRUMENT_TYPE_NONE);
+  builtin_->setChecked(instrument_type == INSTRUMENT_TYPE_BUILTIN);
   soundfont_->setChecked(is_sf2);
   soundfont_path_->setText(QString::fromStdString(config_get_instrument_path()));
   soundfont_path_->setEnabled(is_sf2);
@@ -272,8 +284,10 @@ void SettingsDialog::apply() {
 
   if (soundfont_->isChecked() && !soundfont_path_->text().isEmpty()) {
     config_select_instrument(INSTRUMENT_TYPE_SOUNDFONT, soundfont_path_->text().toStdString());
-  } else {
+  } else if (builtin_->isChecked()) {
     config_select_instrument(INSTRUMENT_TYPE_BUILTIN, "");
+  } else {
+    config_select_instrument(INSTRUMENT_TYPE_MDA_PIANO, "");
   }
 
   config_set_midi_output_port(midi_out_->currentData().toString().toStdString());

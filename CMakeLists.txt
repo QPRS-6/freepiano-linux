@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(freepiano-linux VERSION 1.0.1 LANGUAGES CXX)
+project(freepiano-linux VERSION 1.0.2 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 
@@ -44,6 +44,7 @@ set(FP_CORE_SOURCES
   src/core/keyboard.cpp
   src/core/midi.cpp
   src/core/synth_builtin.cpp
+  src/core/synth_mda_piano.cpp
   src/core/fluidsynth_engine.cpp
   src/core/audio.cpp
   src/core/alsa_midi.cpp
@@ -94,3 +95,5 @@ install(DIRECTORY assets/ DESTINATION ${CMAKE_INSTALL_DATADIR}/freepiano
         PATTERN "freepiano.svg" EXCLUDE)
 install(FILES assets/freepiano.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES assets/freepiano.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+install(FILES LICENSE LICENSES/mdaPiano-MIT.txt README.md PORTING.md
+        DESTINATION ${CMAKE_INSTALL_DOCDIR})

@@ -29,6 +29,7 @@ class SettingsDialog : public QDialog {
   QComboBox* buffer_ = nullptr;
   QSlider* volume_ = nullptr;
 
+  QRadioButton* mda_piano_ = nullptr;
   QRadioButton* builtin_ = nullptr;
   QRadioButton* soundfont_ = nullptr;
   QLineEdit* soundfont_path_ = nullptr;

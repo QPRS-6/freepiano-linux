@@ -2,6 +2,7 @@
 #include <QFile>
 #include <QIcon>
 #include <QKeyEvent>
+#include <QTabWidget>
 #include <QTimer>
 
 #include <cstdio>
@@ -469,6 +470,7 @@ int main(int argc, char** argv) {
       SettingsDialog settings(&window);
       settings.resize(620, 520);
       settings.show();
+      if (auto* tabs = settings.findChild<QTabWidget*>()) tabs->setCurrentIndex(1);
       QApplication::processEvents();
       settings.grab().save(shot_dialogs + "/settings.png");
       settings.close();

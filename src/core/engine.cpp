@@ -87,7 +87,9 @@ void ensure_instrument() {
   std::string error;
   int loaded_type = type;
 
-  if (type == INSTRUMENT_TYPE_SOUNDFONT) {
+  if (type == INSTRUMENT_TYPE_MDA_PIANO) {
+    next.reset(synth_create_mda_piano(sr));
+  } else if (type == INSTRUMENT_TYPE_SOUNDFONT) {
 #ifdef FP_HAVE_FLUIDSYNTH
     char err[256] = {};
     next.reset(synth_create_fluidsynth(path.c_str(), sr, err, sizeof(err)));
@@ -296,6 +298,11 @@ std::vector<std::string> engine_midi_input_ports() { return alsa_midi_input_port
 void engine_select_audio_device(const std::string& device) {
   config_set_output_device(device);
   config_set_output_type(OUTPUT_TYPE_PORTAUDIO);
+  engine_apply_config();
+}
+
+void engine_select_instrument_mda_piano() {
+  config_select_instrument(INSTRUMENT_TYPE_MDA_PIANO, "");
   engine_apply_config();
 }
 

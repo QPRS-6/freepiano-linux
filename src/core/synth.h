@@ -30,6 +30,8 @@ class Synth {
 };
 
 Synth* synth_create_builtin(double sample_rate);
+// Built-in port of mdaPiano, the VSTi FreePiano uses by default.
+Synth* synth_create_mda_piano(double sample_rate);
 #ifdef FP_HAVE_FLUIDSYNTH
 // Returns nullptr and fills error when the SoundFont cannot be loaded.
 Synth* synth_create_fluidsynth(const char* soundfont_path, double sample_rate, char* error, int error_size);

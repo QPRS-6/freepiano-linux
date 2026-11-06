@@ -17,8 +17,10 @@
   `flashpiano.map`、`idreampiano.map`、`default.map`。
 * **原版乐曲兼容**：读写 FreePiano 的 `.fpm` 乐曲（zlib 压缩事件流），可与 Windows 版互相打开。
 * **音源**：
-  * 内置多声部合成器（12 种音色模型，无需任何外部文件）；
-  * 可选 FluidSynth + SoundFont（`.sf2` / `.sf3`），获得更真实的 GM 音色。
+  * 内置 **mdaPiano**——FreePiano Windows 版默认 VSTi 的 MIT 许可原生移植，开箱即用，
+    不需要 VST、Wine 或外部 SoundFont；8 个原厂预设可在「乐器 → mdaPiano 预设」切换；
+  * 内置 GM 合成器（12 种音色模型），作为通用备用音源；
+  * 可选 FluidSynth + SoundFont（`.sf2` / `.sf3`），使用其它 GM 音色库。
 * **音频输出**：PortAudio（ALSA/JACK）+ PulseAudio / PipeWire 后端，自动回退。
 * **MIDI**：ALSA sequencer MIDI 输入（外部 MIDI 键盘，支持通道映射）与 MIDI 输出。
 * **录制 / 播放 / 导出 WAV**：录制键位事件，保存为 `.fpm`；可离线渲染导出 16-bit WAV。
@@ -78,13 +80,18 @@ sudo cmake --install build          # 默认前缀 /usr/local
   `Q W E…` 和数字行为高音区；`F1/F2` 切换分组，`F3/F4` 曲调，`F5-F12` 八度/力度）。
 * 点击下方钢琴也可以演奏，鼠标按下的音会录入乐曲。
 * `●` 录制、`▶` 播放、`■` 停止；`Ctrl+O / Ctrl+S` 打开/保存 `.fpm`，`Ctrl+E` 导出 WAV。
-* 「键位」菜单可切换/编辑 `.map`；「乐器」菜单加载 SoundFont 或切换内置合成器。
+* 「键位」菜单可切换/编辑 `.map`；「乐器」菜单切换 mdaPiano / GM 合成器 / SoundFont，
+  并可选择 mdaPiano 的 8 个预设。
 * 设置中可切换音频设备、PulseAudio/PipeWire、采样率、缓冲、MIDI 端口与通道映射。
 
-### 关于 SoundFont
+### 关于音源
 
-内置合成器开箱即用，但钢琴音色比较电子。想要更真实的效果，可安装任意 GM SoundFont 后
-在「乐器 → 加载 SoundFont...」中选择，例如：
+默认音源就是 Windows 版 FreePiano 默认的 mdaPiano（已内置，含钢琴采样表），启动即可得到
+和原版接近的钢琴声，不需要任何外部文件。若想使用别的音色：
+
+* 「设置 → 音源」可在 mdaPiano、内置 GM 合成器、SoundFont 之间切换；
+* 「乐器 → mdaPiano 预设」可选择 `Concert Piano`、`Dark Piano` 等 8 个原厂预设；
+* 需要 GM 音色库时，可加载任意 `.sf2/.sf3`，例如：
 
 ```bash
 sudo pacman -S soundfont-fluid        # FluidR3_GM
@@ -117,7 +124,8 @@ sudo pacman -S soundfont-fluid        # FluidR3_GM
 一个量级的工程。
 
 **Q：没有声音？** 检查「设置 → 音频」：优先使用 PortAudio 设备；如果系统只有 PipeWire/
-PulseAudio，请选择 “PulseAudio / PipeWire (default)”。内置合成器默认即可发声。
+PulseAudio，请选择 “PulseAudio / PipeWire (default)”。默认的 mdaPiano 是内置的，
+不需要额外音色文件。
 
 **Q：如何在后台/其他窗口演奏？** Linux（尤其 Wayland）不允许全局抓键，本移植只在窗口聚焦时
 接收键盘；这是与 Windows 低级键盘钩子的主要行为差异。
@@ -126,7 +134,7 @@ PulseAudio，请选择 “PulseAudio / PipeWire (default)”。内置合成器�
 
 | Windows 版 | Linux 移植 |
 | --- | --- |
-| VSTi 插件（默认 mdaPiano） | 内置合成器 / FluidSynth SoundFont |
+| VSTi 插件（默认 mdaPiano） | 内置 mdaPiano（MIT 移植）/ 可选 SoundFont |
 | DirectSound / WASAPI / ASIO | PortAudio（ALSA/JACK）+ PulseAudio/PipeWire |
 | WinMM MIDI 输入/输出 | ALSA sequencer |
 | Direct3D 皮肤渲染 | Qt 6 原生绘制（布局与原版一致） |
@@ -149,13 +157,14 @@ PulseAudio，请选择 “PulseAudio / PipeWire (default)”。内置合成器�
 * 12/12 `.fpm` 全部可打开、解析并正常播放；
 * 键盘扫描码回归用例（X11 `evdev+8` 与原始 evdev 两种口径）全部通过；
 * 4/4 `.map` 全部可加载（含 `flashpiano.map`、`idreampiano.map`）；
-* 自测全部通过，WAV 导出非静音（内置合成器与 FluidSynth 均验证）。
+* 自测全部通过，WAV 导出非静音（mdaPiano、内置合成器与 FluidSynth 均验证）。
 
 ## 开发
 
 ```
 src/core/   便携引擎：keycodes / config(.map) / song(.fpm) / keyboard / midi /
-            synth_builtin / fluidsynth_engine / audio / alsa_midi / engine / wav_export
+            synth_mda_piano（内置 mdaPiano）/ synth_builtin / fluidsynth_engine /
+            audio / alsa_midi / engine / wav_export
 src/ui/     Qt 6 界面：mainwindow / keyboardwidget / pianowidget / 设置 / 键位编辑器
 assets/     键位、图标、desktop 文件
 docs/       截图
@@ -173,6 +182,10 @@ All rights reserved.
 ```
 
 完整许可见 [LICENSE](LICENSE)。上游项目：<https://github.com/Energy0124/freepiano>。
+
+内置的 **mdaPiano** 音源（DSP 与采样表）来自 Paul Kellett 的 mda 插件，
+Copyright (c) 1999-2000 Paul Kellett，MIT 许可；许可全文见
+[LICENSES/mdaPiano-MIT.txt](LICENSES/mdaPiano-MIT.txt)。
 
 第三方组件：Qt 6 (LGPL-3.0)、PortAudio (MIT)、ALSA (LGPL-2.1)、FluidSynth (LGPL-2.1)、
 zlib (zlib)、PulseAudio (LGPL-2.1)。
