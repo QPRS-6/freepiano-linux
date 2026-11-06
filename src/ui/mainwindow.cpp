@@ -28,6 +28,7 @@
 #include <QLabel>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QResizeEvent>
 #include <QShowEvent>
@@ -112,14 +113,8 @@ void MainWindow::buildControls() {
 
   auto* record_button = make_button(QString::fromUtf8("●"), fp_tr("录制", "Record"), SLOT(onRecord()));
   record_button->setStyleSheet("QPushButton{color:#c62828;font-size:18px;}");
-  auto* play_button = make_button(QString::fromUtf8("▶"), fp_tr("播放", "Play"), SLOT(onPlay()));
-  play_button->setStyleSheet("QPushButton{font-size:14px;}");
-  auto* stop_button = make_button(QString::fromUtf8("■"), fp_tr("停止", "Stop"), SLOT(onStop()));
-  stop_button->setStyleSheet("QPushButton{font-size:14px;}");
 
   bar->addWidget(record_button);
-  bar->addWidget(play_button);
-  bar->addWidget(stop_button);
   bar->addWidget(separator(central));
 
   bar->addWidget(control_label(fp_tr("分组", "Group"), central));
@@ -202,6 +197,59 @@ void MainWindow::buildControls() {
   keyboard_->setMinimumHeight(160);
   keyboard_->setMaximumHeight(340);
   layout->addWidget(keyboard_, 0);
+
+  progress_row_ = new QWidget(central);
+  progress_row_->setObjectName("progressRow");
+  auto* progress_layout = new QHBoxLayout(progress_row_);
+  progress_layout->setContentsMargins(0, 0, 0, 0);
+  progress_layout->setSpacing(8);
+
+  auto make_transport = [&](const QString& text, const QString& tip, const char* slot) {
+    auto* button = new QPushButton(text, progress_row_);
+    button->setFixedSize(30, 24);
+    button->setFocusPolicy(Qt::NoFocus);
+    button->setToolTip(tip);
+    connect(button, SIGNAL(clicked()), this, slot);
+    return button;
+  };
+  play_button_ = make_transport(QString::fromUtf8("▶"), fp_tr("播放", "Play"), SLOT(onPlay()));
+  play_button_->setObjectName("playButton");
+  pause_button_ = make_transport(QString::fromUtf8("⏸"), fp_tr("暂停", "Pause"), SLOT(onPause()));
+  pause_button_->setObjectName("pauseButton");
+  stop_button_ = make_transport(QString::fromUtf8("■"), fp_tr("停止", "Stop"), SLOT(onStop()));
+  stop_button_->setObjectName("stopButton");
+  play_button_->setStyleSheet("QPushButton{font-size:13px;}");
+  pause_button_->setStyleSheet("QPushButton{font-size:13px;}");
+  stop_button_->setStyleSheet("QPushButton{font-size:13px;}");
+
+  progress_elapsed_ = new QLabel("00:00.0", progress_row_);
+  progress_elapsed_->setStyleSheet("color:#9a9aa2;font-family:monospace;");
+  progress_elapsed_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  progress_elapsed_->setFixedWidth(58);
+
+  progress_bar_ = new QProgressBar(progress_row_);
+  progress_bar_->setObjectName("songProgress");
+  progress_bar_->setTextVisible(false);
+  progress_bar_->setFixedHeight(12);
+  progress_bar_->setFocusPolicy(Qt::NoFocus);
+  progress_bar_->setToolTip(fp_tr("播放进度：当前时间 / 总时长", "Playback position: current / total"));
+  progress_bar_->setStyleSheet(
+      "QProgressBar{border:1px solid #303038;border-radius:4px;background:#15151a;}"
+      "QProgressBar::chunk{background:#ff9d2e;border-radius:3px;}");
+
+  progress_total_ = new QLabel("00:00.0", progress_row_);
+  progress_total_->setStyleSheet("color:#9a9aa2;font-family:monospace;");
+  progress_total_->setFixedWidth(58);
+
+  progress_layout->addWidget(play_button_);
+  progress_layout->addWidget(pause_button_);
+  progress_layout->addWidget(stop_button_);
+  progress_layout->addSpacing(4);
+  progress_layout->addWidget(progress_elapsed_);
+  progress_layout->addWidget(progress_bar_, 1);
+  progress_layout->addWidget(progress_total_);
+  layout->addWidget(progress_row_);
+  progress_row_->setVisible(false);
 
   piano_ = new PianoWidget(central);
   layout->addWidget(piano_, 1);
@@ -427,9 +475,28 @@ void MainWindow::tick() {
     sustain_button_->setChecked(sustain);
   }
 
+  const bool paused = song_is_paused();
   double timer = song_get_timer();
-  if (!song_is_playing() && !song_is_recording()) timer = 0;
+  if (!song_is_playing() && !song_is_recording() && !paused) timer = 0;
   time_label_->setText(format_time(timer));
+
+  // Playback progress bar between the computer keyboard and the piano.
+  // It only exists while a song is loaded; an in-progress recording has no
+  // fixed duration yet, so it is hidden until recording finishes.
+  const bool has_song = !song_is_empty() && !song_is_recording();
+  if (progress_row_) {
+    progress_row_->setVisible(has_song);
+    if (has_song) {
+      int length = song_get_length();
+      int position = (song_is_playing() || paused) ? (int)song_get_timer() : 0;
+      if (length < 1) length = 1;
+      position = std::clamp(position, 0, length);
+      progress_bar_->setRange(0, length);
+      progress_bar_->setValue(position);
+      progress_elapsed_->setText(format_time(position));
+      progress_total_->setText(format_time(length));
+    }
+  }
 
   int out_ch = config_get_output_channel(0);
   int program = config_get_program((uint8_t)(SM_OUTPUT_0 + out_ch));
@@ -446,9 +513,15 @@ void MainWindow::tick() {
     volume_slider_->setValue(config_get_output_volume());
   }
 
-  if (play_action_) play_action_->setEnabled(!song_is_empty() && !song_is_recording());
+  if (play_button_) {
+    play_button_->setEnabled(!song_is_empty() && !song_is_recording() && !song_is_playing());
+    pause_button_->setEnabled(song_is_playing());
+    stop_button_->setEnabled(song_is_playing() || paused);
+  }
+  if (play_action_)
+    play_action_->setEnabled(!song_is_empty() && !song_is_recording() && !song_is_playing());
   if (record_action_) record_action_->setEnabled(!song_is_playing());
-  if (stop_action_) stop_action_->setEnabled(song_is_playing() || song_is_recording());
+  if (stop_action_) stop_action_->setEnabled(song_is_playing() || paused || song_is_recording());
 
   keyboard_->update();
   piano_->update();
@@ -529,7 +602,24 @@ void MainWindow::onPlay() {
                              5000);
     return;
   }
-  song_start_playback();
+  if (song_is_paused()) {
+    song_resume_playback();
+  } else if (!song_is_playing()) {
+    song_start_playback();
+  }
+  updateWindowTitle();
+  setFocus();
+}
+
+void MainWindow::onPause() {
+  if (song_is_playing()) {
+    song_pause_playback();
+    statusBar()->showMessage(fp_tr("已暂停", "Paused"), 3000);
+    updateWindowTitle();
+  } else if (song_is_paused()) {
+    song_resume_playback();
+    updateWindowTitle();
+  }
   setFocus();
 }
 
@@ -782,6 +872,7 @@ void MainWindow::updateWindowTitle() {
   QString title = "FreePiano Linux";
   if (!song_path_.isEmpty()) title += "  —  " + QFileInfo(song_path_).fileName();
   if (song_is_recording()) title += fp_tr("  [录制中]", "  [recording]");
+  else if (song_is_paused()) title += fp_tr("  [已暂停]", "  [paused]");
   setWindowTitle(title);
 }
 

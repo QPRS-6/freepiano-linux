@@ -27,6 +27,8 @@
   * 可选 FluidSynth + SoundFont（`.sf2` / `.sf3`），使用其它 GM 音色库。
 * **音频输出**：PortAudio（ALSA/JACK）+ PulseAudio / PipeWire 后端，自动回退。
 * **MIDI**：ALSA sequencer MIDI 输入（外部 MIDI 键盘，支持通道映射）与 MIDI 输出。
+* **播放进度条**：位于屏幕键盘和钢琴之间；有乐曲时显示播放 / 暂停 / 停止和当前进度，
+  没有乐曲时整行自动隐藏。
 * **录制 / 播放 / 导出 WAV**：录制键位/延音事件，保存为 `.fpm`；可离线渲染导出 16-bit WAV。
 * **多分组、移调、跟随曲调、延音、力度、八度**：与原版脚本语义一致。
 * **键位编辑器**：以纯文本方式编辑 `.map`，实时应用、另存。
@@ -37,6 +39,10 @@
 | 设置 | 键位编辑器 | 右键修改按键 |
 | --- | --- | --- |
 | ![设置](docs/screenshot-settings.png) | ![键位编辑器](docs/screenshot-keymap.png) | ![修改按键](docs/screenshot-keyedit.png) |
+
+有乐曲时，键盘与钢琴之间会显示播放 / 暂停 / 停止和进度：
+
+![播放进度](docs/screenshot-progress.png)
 
 ## 构建
 
@@ -87,7 +93,8 @@ sudo cmake --install build          # 默认前缀 /usr/local
   延音踏板键提供两个子选项：**按住延音**（按下开启、松开关闭）和**切换延音**（按一次开、再按关）。
 * 工具栏「延音」按钮切换延音踏板（作用于 `In_0` 对应的输出通道，即默认键位），按钮状态会跟随
   键位脚本/乐曲回放更新；开启时会录入乐曲。
-* `●` 录制、`▶` 播放、`■` 停止；`Ctrl+O / Ctrl+S` 打开/保存 `.fpm`，`Ctrl+E` 导出 WAV。
+* 有乐曲时，键盘和钢琴之间会显示播放 / 暂停 / 停止与进度条；没有乐曲时隐藏。
+* `●` 录制、`▶` 播放、`❚❚` 暂停、`■` 停止；`Ctrl+O / Ctrl+S` 打开/保存 `.fpm`，`Ctrl+E` 导出 WAV。
 * 「键位」菜单可切换/编辑 `.map`；「乐器」菜单切换 mdaPiano / GM 合成器 / SoundFont，
   并可选择 mdaPiano 的 8 个预设。
 * 设置中可切换音频设备、PulseAudio/PipeWire、采样率、缓冲、MIDI 端口与通道映射。

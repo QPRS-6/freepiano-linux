@@ -125,6 +125,15 @@ MIT（或 GPL）许可发布，Linux 上无需 VST 宿主即可使用：
 * 工具栏「延音」是 checkable 按钮：切换时发送 `SM_SUSTAIN`（可录制），每帧从 CC64 状态同步，
   因此脚本/回放改变延音时按钮也会跟着变。
 
+### 播放进度与暂停
+
+`KeyboardWidget` 与 `PianoWidget` 之间插入一行播放控制（`progressRow`）：播放、暂停、停止、
+当前时间、进度条、总时长。`song_is_empty()` 为真或正在录制时整行隐藏；有乐曲时显示。
+
+暂停不保留发声中的音符：`song_pause_playback()` 记录 `song_timer` 后重置事件/音符状态，
+`song_resume_playback()` 重新开始播放并快进事件流到暂停位置，重建分组、音色、控制器和
+活动音符。这样暂停期间不会留下持续音，恢复后位置也准确。
+
 ### 音频
 
 ```

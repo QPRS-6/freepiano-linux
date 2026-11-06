@@ -30,6 +30,8 @@ static_assert(sizeof(song_event_t) == 16, "FreePiano song events are 16 bytes");
 static std::vector<song_event_t> song_events;
 static int play_position = -1;
 static int record_position = -1;
+static bool playback_paused = false;
+static double pause_timer = 0;
 static int song_event_count = 0;
 
 static double song_timer = 0;
@@ -653,6 +655,8 @@ void song_start_playback() {
   if (song_event_count <= 0) return;
   if (record_position >= 0) song_stop_record();
   song_stop_playback();
+  playback_paused = false;
+  pause_timer = 0;
 
   song_timer = 0;
   song_clock = 0;
@@ -666,11 +670,43 @@ void song_start_playback() {
 
 void song_stop_playback() {
   fp_lock lock;
+  playback_paused = false;
+  pause_timer = 0;
   song_reset_event();
   play_position = -1;
 }
 
 bool song_is_playing() { fp_lock lock; return play_position >= 0; }
+
+void song_pause_playback() {
+  fp_lock lock;
+  if (play_position < 0) return;
+  pause_timer = song_timer;
+  playback_paused = true;
+  // Release sounding notes; resume fast-forwards the event stream to rebuild
+  // the state at the pause position.
+  song_reset_event();
+  play_position = -1;
+}
+
+void song_resume_playback() {
+  fp_lock lock;
+  if (!playback_paused || song_event_count <= 0) return;
+
+  const double target = pause_timer;
+  const double speed = song_play_speed > 0 ? song_play_speed : 1.0;
+  playback_paused = false;
+  pause_timer = 0;
+
+  song_start_playback();
+  if (play_position >= 0 && target > 0) {
+    // song_update() scales by song_play_speed, so compensate to land exactly
+    // at the pause position.
+    song_update(target / speed);
+  }
+}
+
+bool song_is_paused() { fp_lock lock; return playback_paused; }
 
 int song_get_length() {
   fp_lock lock;

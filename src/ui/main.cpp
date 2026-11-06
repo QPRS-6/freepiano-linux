@@ -6,11 +6,13 @@
 #include <QDialogButtonBox>
 #include <QSpinBox>
 #include <QMouseEvent>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QTabWidget>
 #include <QTimer>
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -159,6 +161,19 @@ int run_selftest() {
   int guard = 0;
   while (song_is_playing() && guard++ < 2000) song_update(25);
   check(!song_is_playing(), "playback finishes");
+
+  // Pause freezes the position; resume fast-forwards back to it.
+  song_start_playback();
+  song_update(250);
+  const double paused_at = song_get_timer();
+  song_pause_playback();
+  check(song_is_paused(), "playback pauses");
+  check(!song_is_playing(), "paused playback is not playing");
+  check(std::fabs(song_get_timer() - paused_at) < 1.0, "pause keeps the position");
+  song_resume_playback();
+  check(song_is_playing(), "playback resumes");
+  check(std::fabs(song_get_timer() - paused_at) < 2.0, "resume restores the position");
+  song_stop_playback();
 
   // Offline render through the built-in synthesizer.
   std::string wav_path = config_config_dir() + "/selftest.wav";
@@ -614,6 +629,66 @@ int main(int argc, char** argv) {
       config_bind_set_label(DIK_SPACE, orig_label.c_str());
       song_send_event(SM_SUSTAIN, 0, SM_VALUE_SET, 0, true);
     }
+
+    // Playback progress row: hidden without a song, visible with one, and the
+    // transport buttons pause/resume the same engine state as the menu.
+    auto* progress_row = window.findChild<QWidget*>("progressRow");
+    auto* progress_bar = window.findChild<QProgressBar*>("songProgress");
+    auto* play_button = window.findChild<QPushButton*>("playButton");
+    auto* pause_button = window.findChild<QPushButton*>("pauseButton");
+    auto* stop_button = window.findChild<QPushButton*>("stopButton");
+    QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
+    bool progress_empty_hidden = progress_row && progress_bar && !progress_row->isVisible();
+
+    song_start_record();
+    QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
+    bool progress_recording_hidden = progress_row && !progress_row->isVisible();
+    song_send_event(SM_NOTE_ON, 0, 60, 100, true);
+    song_update(1000);
+    song_send_event(SM_NOTE_OFF, 0, 60, 0, true);
+    song_stop_record();
+    QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
+    bool progress_visible = progress_row && progress_bar && play_button && pause_button &&
+                            stop_button && progress_row->isVisible() &&
+                            progress_bar->maximum() >= 1000;
+
+    play_button->click();
+    song_update(300);
+    QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
+    bool progress_follows = song_is_playing() && progress_bar->value() >= 290 &&
+                            progress_bar->value() <= 350;
+
+    pause_button->click();
+    QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
+    bool pause_ui_ok = song_is_paused() && progress_row->isVisible() &&
+                       progress_bar->value() >= 290 && progress_bar->value() <= 350;
+
+    play_button->click();
+    QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
+    bool resume_ui_ok = song_is_playing() && progress_bar->value() >= 290 &&
+                        progress_bar->value() <= 350;
+
+    stop_button->click();
+    song_close();
+    QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
+    bool progress_closed_hidden = progress_row && !progress_row->isVisible();
+
+    std::printf("  [%s] progress row hidden when there is no song\n",
+                progress_empty_hidden ? "ok" : "FAIL");
+    if (!progress_empty_hidden) ++failures;
+    std::printf("  [%s] progress row hidden while recording\n",
+                progress_recording_hidden ? "ok" : "FAIL");
+    if (!progress_recording_hidden) ++failures;
+    std::printf("  [%s] progress row appears with a song\n", progress_visible ? "ok" : "FAIL");
+    if (!progress_visible) ++failures;
+    std::printf("  [%s] progress bar follows playback\n", progress_follows ? "ok" : "FAIL");
+    if (!progress_follows) ++failures;
+    std::printf("  [%s] pause/resume keeps the progress position\n",
+                (pause_ui_ok && resume_ui_ok) ? "ok" : "FAIL");
+    if (!(pause_ui_ok && resume_ui_ok)) ++failures;
+    std::printf("  [%s] progress row hidden after closing the song\n",
+                progress_closed_hidden ? "ok" : "FAIL");
+    if (!progress_closed_hidden) ++failures;
 
     std::printf("%s (%d failure%s)\n", failures == 0 ? "UI TEST PASSED" : "UI TEST FAILED",
                 failures, failures == 1 ? "" : "s");

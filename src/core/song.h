@@ -27,6 +27,10 @@ bool song_is_recording();
 void song_start_playback();
 void song_stop_playback();
 bool song_is_playing();
+// Pause keeps the position and resumes by fast-forwarding the event stream.
+void song_pause_playback();
+void song_resume_playback();
+bool song_is_paused();
 
 bool song_allow_save();
 bool song_allow_input();

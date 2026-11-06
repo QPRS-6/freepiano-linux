@@ -6,6 +6,7 @@
 class QAction;
 class QLabel;
 class QMenu;
+class QProgressBar;
 class QPushButton;
 class QSlider;
 class QSpinBox;
@@ -36,6 +37,7 @@ class MainWindow : public QMainWindow {
  private slots:
   void tick();
   void onPlay();
+  void onPause();
   void onRecord();
   void onStop();
   void onOpenSong();
@@ -72,8 +74,16 @@ class MainWindow : public QMainWindow {
   QLabel* instrument_label_ = nullptr;
   QLabel* program_label_ = nullptr;
   QPushButton* sustain_button_ = nullptr;
+  QPushButton* play_button_ = nullptr;
+  QPushButton* pause_button_ = nullptr;
+  QPushButton* stop_button_ = nullptr;
   QLabel* time_label_ = nullptr;
   QLabel* status_label_ = nullptr;
+
+  QWidget* progress_row_ = nullptr;
+  QProgressBar* progress_bar_ = nullptr;
+  QLabel* progress_elapsed_ = nullptr;
+  QLabel* progress_total_ = nullptr;
 
   QSpinBox* group_spin_ = nullptr;
   QSpinBox* key_sign_spin_ = nullptr;
