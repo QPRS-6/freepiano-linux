@@ -27,8 +27,8 @@
   * 可选 FluidSynth + SoundFont（`.sf2` / `.sf3`），使用其它 GM 音色库。
 * **音频输出**：PortAudio（ALSA/JACK）+ PulseAudio / PipeWire 后端，自动回退。
 * **MIDI**：ALSA sequencer MIDI 输入（外部 MIDI 键盘，支持通道映射）与 MIDI 输出。
-* **播放进度条**：位于屏幕键盘和钢琴之间；有乐曲时显示播放 / 暂停 / 停止和当前进度，
-  没有乐曲时整行自动隐藏。
+* **可拖动播放进度条**：位于屏幕键盘和钢琴之间；有乐曲时显示播放 / 暂停 / 停止和当前进度，
+  拖动进度条可跳转，没有乐曲时整行自动隐藏。
 * **录制 / 播放 / 导出 WAV**：录制键位/延音事件，保存为 `.fpm`；可离线渲染导出 16-bit WAV。
 * **多分组、移调、跟随曲调、延音、力度、八度**：与原版脚本语义一致。
 * **键位编辑器**：以纯文本方式编辑 `.map`，实时应用、另存。
@@ -93,8 +93,9 @@ sudo cmake --install build          # 默认前缀 /usr/local
   延音踏板键提供两个子选项：**按住延音**（按下开启、松开关闭）和**切换延音**（按一次开、再按关）。
 * 工具栏「延音」按钮切换延音踏板（作用于 `In_0` 对应的输出通道，即默认键位），按钮状态会跟随
   键位脚本/乐曲回放更新；开启时会录入乐曲。
-* 有乐曲时，键盘和钢琴之间会显示播放 / 暂停 / 停止与进度条；没有乐曲时隐藏。
+* 有乐曲时，键盘和钢琴之间会显示播放 / 暂停 / 停止与进度条；拖动进度条可跳转，没有乐曲时隐藏。
 * `●` 录制、`▶` 播放、`❚❚` 暂停、`■` 停止；`Ctrl+O / Ctrl+S` 打开/保存 `.fpm`，`Ctrl+E` 导出 WAV。
+* 兼容 FreePiano 1.x 和 2.x 录制的 `.fpm`；2.x 中本移植不认识的新事件会被忽略。
 * 「键位」菜单可切换/编辑 `.map`；「乐器」菜单切换 mdaPiano / GM 合成器 / SoundFont，
   并可选择 mdaPiano 的 8 个预设。
 * 设置中可切换音频设备、PulseAudio/PipeWire、采样率、缓冲、MIDI 端口与通道映射。
@@ -134,7 +135,7 @@ sudo pacman -S soundfont-fluid        # FluidR3_GM
 
 **Q：本移植对应哪个版本？** 上游开源的是 **FreePiano 1.8**（Energy0124/freepiano）。
 `gendloop/freepiano` 只发布 **Wispow FreePiano 2.x** 的 Windows 二进制，2.x 源码未公开，
-因此无法直接“编译一个 Linux 版 2.x”。本移植复用了 1.8 的事件模型、键位脚本与 `.fpm` 格式，
+因此无法直接“编译一个 Linux 版 2.x”。本移植复用了 1.8 的事件模型、键位脚本与 `.fpm` 格式，并兼容读取 FreePiano 2.x 录制的 `.fpm`，
 界面/音源/音频/MIDI 层全部重写。若需要 2.x 的界面与功能，需要在逆向其二进制后重写，属于另
 一个量级的工程。
 
@@ -183,7 +184,7 @@ PulseAudio，请选择 “PulseAudio / PipeWire (default)”。默认的 mdaPian
 ## AUR
 
 `packaging/aur/` 中已经准备好 AUR 包（`PKGBUILD` + `.SRCINFO`，包名 `freepiano-linux`，
-版本 1.0.6），并已用 `makepkg` 本地构建验证。提交到 AUR 后可以：
+版本 1.0.7），并已用 `makepkg` 本地构建验证。提交到 AUR 后可以：
 
 ```bash
 yay -S freepiano-linux
@@ -200,7 +201,7 @@ GitHub Releases 也提供构建好的 pacman 包（已包含 `.desktop`、图标
 
 ```bash
 # 从 https://github.com/QPRS-6/freepiano-linux/releases 下载后
-sudo pacman -U freepiano-linux-1.0.6-1-x86_64.pkg.tar.zst
+sudo pacman -U freepiano-linux-1.0.7-1-x86_64.pkg.tar.zst
 ```
 
 该包未做 GPG 签名，`pacman -U` 可能会提示确认；也可以直接用上面的 AUR 方式本地编译。

@@ -31,7 +31,6 @@ static std::vector<song_event_t> song_events;
 static int play_position = -1;
 static int record_position = -1;
 static bool playback_paused = false;
-static double pause_timer = 0;
 static int song_event_count = 0;
 
 static double song_timer = 0;
@@ -39,7 +38,11 @@ static double song_play_speed = 1;
 static double song_clock = 0;
 static song_info_t song_info{};
 
-static const uint32_t current_version = 0x01080000;
+// We write the FreePiano 1.8 format so old players can still open our songs.
+static const uint32_t write_version = 0x01080000;
+// FreePiano 2.x (up to 2.2.2.1 observed) keeps the same event stream but bumps
+// the version.  Read those songs as well; unknown/newer events are ignored.
+static const uint32_t max_supported_version = 0x02FFFFFF;
 
 // ---------------------------------------------------------------------------
 // sync and delayed events
@@ -539,7 +542,7 @@ static void song_init_record() {
   record_position = 0;
   play_position = -1;
   song_event_count = 0;
-  song_info.version = current_version;
+  song_info.version = write_version;
   song_info.author[0] = 0;
   song_info.title[0] = 0;
   song_info.comment[0] = 0;
@@ -656,7 +659,6 @@ void song_start_playback() {
   if (record_position >= 0) song_stop_record();
   song_stop_playback();
   playback_paused = false;
-  pause_timer = 0;
 
   song_timer = 0;
   song_clock = 0;
@@ -671,42 +673,47 @@ void song_start_playback() {
 void song_stop_playback() {
   fp_lock lock;
   playback_paused = false;
-  pause_timer = 0;
   song_reset_event();
   play_position = -1;
 }
 
-bool song_is_playing() { fp_lock lock; return play_position >= 0; }
+bool song_is_playing() { fp_lock lock; return play_position >= 0 && !playback_paused; }
 
 void song_pause_playback() {
   fp_lock lock;
-  if (play_position < 0) return;
-  pause_timer = song_timer;
+  if (play_position < 0 || playback_paused) return;
+  // Freeze time in place.  Do not reset the event/note state: resetting at
+  // pause and fast-forwarding on resume re-triggers every note that was held,
+  // which produced a loud chord when pressing play again.
   playback_paused = true;
-  // Release sounding notes; resume fast-forwards the event stream to rebuild
-  // the state at the pause position.
-  song_reset_event();
-  play_position = -1;
 }
 
 void song_resume_playback() {
   fp_lock lock;
-  if (!playback_paused || song_event_count <= 0) return;
-
-  const double target = pause_timer;
-  const double speed = song_play_speed > 0 ? song_play_speed : 1.0;
+  if (!playback_paused) return;
   playback_paused = false;
-  pause_timer = 0;
-
-  song_start_playback();
-  if (play_position >= 0 && target > 0) {
-    // song_update() scales by song_play_speed, so compensate to land exactly
-    // at the pause position.
-    song_update(target / speed);
-  }
+  // Keep the existing synthesizer voices and continue at the frozen position.
 }
 
 bool song_is_paused() { fp_lock lock; return playback_paused; }
+
+void song_seek(int milliseconds) {
+  fp_lock lock;
+  if (song_event_count <= 0) return;
+
+  int length = (int)song_events[song_event_count - 1].time;
+  if (length < 0) length = 0;
+  int target = milliseconds < 0 ? 0 : (milliseconds > length ? length : milliseconds);
+  const double speed = song_play_speed > 0 ? song_play_speed : 1.0;
+
+  playback_paused = false;
+  song_start_playback();
+  if (play_position >= 0 && target > 0) {
+    // song_update() multiplies by song_play_speed; compensate so the seek
+    // lands at the requested playback position.
+    song_update((double)target / speed);
+  }
+}
 
 int song_get_length() {
   fp_lock lock;
@@ -755,6 +762,7 @@ void song_set_play_speed(double speed) {
 
 void song_update(double time_elapsed) {
   fp_lock lock;
+  if (playback_paused) return;
 
   if (play_position >= 0) time_elapsed *= song_play_speed;
   if (play_position >= 0 || record_position >= 0) song_timer += time_elapsed;
@@ -845,9 +853,9 @@ int song_open(const std::string& filename) {
     config_set_last_error("Not a FreePiano song (.fpm).");
     return -1;
   }
-  if (version > current_version) {
+  if (version > max_supported_version) {
     std::fclose(fp);
-    config_set_last_error("This song was written by a newer FreePiano version.");
+    config_set_last_error("This song was written by a newer FreePiano version than supported (2.x).");
     return -2;
   }
 
@@ -952,7 +960,7 @@ int song_save(const std::string& filename) {
   if (!fp) return -1;
 
   bool ok = write_bytes("FreePianoSong", sizeof("FreePianoSong"), fp);
-  uint32_t version = current_version;
+  uint32_t version = write_version;
   ok = ok && write_bytes(&version, sizeof(version), fp);
   ok = ok && write_string(song_info.title, fp);
   ok = ok && write_string(song_info.author, fp);

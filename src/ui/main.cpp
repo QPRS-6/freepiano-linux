@@ -6,7 +6,7 @@
 #include <QDialogButtonBox>
 #include <QSpinBox>
 #include <QMouseEvent>
-#include <QProgressBar>
+#include <QSlider>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QTabWidget>
@@ -151,6 +151,21 @@ int run_selftest() {
   check(recorded_length >= 700, "recording length is sane");
 
   check(song_save(song_path) == 0, "song_save writes .fpm");
+
+  // A FreePiano 2.x file uses the same event stream with a newer version word.
+  std::string compat_path = config_config_dir() + "/selftest-2x.fpm";
+  {
+    std::ifstream src(song_path, std::ios::binary);
+    std::string bytes((std::istreambuf_iterator<char>(src)), std::istreambuf_iterator<char>());
+    if (bytes.size() > 18) {
+      uint32_t version = 0x02020100;
+      std::memcpy(&bytes[14], &version, sizeof(version));
+      std::ofstream dst(compat_path, std::ios::binary | std::ios::trunc);
+      dst.write(bytes.data(), (std::streamsize)bytes.size());
+    }
+  }
+  song_close();
+  check(song_open(compat_path) == 0, "FreePiano 2.x song version opens");
   song_close();
   check(song_open(song_path) == 0, "song_open reads .fpm back");
   check(song_get_event_count() == recorded_events, "event count survives round-trip");
@@ -173,6 +188,11 @@ int run_selftest() {
   song_resume_playback();
   check(song_is_playing(), "playback resumes");
   check(std::fabs(song_get_timer() - paused_at) < 2.0, "resume restores the position");
+  song_stop_playback();
+
+  song_seek(400);
+  check(song_is_playing() && std::fabs(song_get_timer() - 400) < 2.0,
+        "seek jumps to the requested position");
   song_stop_playback();
 
   // Offline render through the built-in synthesizer.
@@ -222,6 +242,7 @@ int run_selftest() {
   config_set_keymap("freepiano.map");
 
   std::filesystem::remove(song_path, ec);
+  std::filesystem::remove(compat_path, ec);
 
   std::printf("%s (%d failure%s)\n", failures == 0 ? "SELF-TEST PASSED" : "SELF-TEST FAILED",
               failures, failures == 1 ? "" : "s");
@@ -362,6 +383,14 @@ int main(int argc, char** argv) {
     screenshot = args.at(screenshot_index + 1);
   }
 
+  QString render_song;
+  QString render_wav;
+  int render_song_index = args.indexOf("--render-song");
+  if (render_song_index >= 0 && render_song_index + 2 < args.size()) {
+    render_song = args.at(render_song_index + 1);
+    render_wav = args.at(render_song_index + 2);
+  }
+
   QString test_songs;
   int test_songs_index = args.indexOf("--test-songs");
   if (test_songs_index >= 0 && test_songs_index + 1 < args.size()) {
@@ -377,6 +406,23 @@ int main(int argc, char** argv) {
   }
 
   engine_init();
+
+  if (!render_song.isEmpty() && !render_wav.isEmpty()) {
+    config_set_output_type(OUTPUT_TYPE_NULL);
+    engine_apply_config();
+    if (song_open(render_song.toStdString()) != 0) {
+      std::fprintf(stderr, "cannot open %s: %s\n", render_song.toUtf8().constData(),
+                   config_get_last_error());
+      engine_shutdown();
+      return 1;
+    }
+    std::string error;
+    bool ok = engine_export_wav(render_wav.toStdString(), &error);
+    std::printf("render-song: %s%s\n", ok ? "wrote " : "failed: ",
+                ok ? render_wav.toUtf8().constData() : error.c_str());
+    engine_shutdown();
+    return ok ? 0 : 1;
+  }
 
   if (test_ui) {
     config_set_output_type(OUTPUT_TYPE_NULL);
@@ -633,12 +679,12 @@ int main(int argc, char** argv) {
     // Playback progress row: hidden without a song, visible with one, and the
     // transport buttons pause/resume the same engine state as the menu.
     auto* progress_row = window.findChild<QWidget*>("progressRow");
-    auto* progress_bar = window.findChild<QProgressBar*>("songProgress");
+    auto* progress_slider = window.findChild<QSlider*>("songProgress");
     auto* play_button = window.findChild<QPushButton*>("playButton");
     auto* pause_button = window.findChild<QPushButton*>("pauseButton");
     auto* stop_button = window.findChild<QPushButton*>("stopButton");
     QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
-    bool progress_empty_hidden = progress_row && progress_bar && !progress_row->isVisible();
+    bool progress_empty_hidden = progress_row && progress_slider && !progress_row->isVisible();
 
     song_start_record();
     QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
@@ -648,25 +694,37 @@ int main(int argc, char** argv) {
     song_send_event(SM_NOTE_OFF, 0, 60, 0, true);
     song_stop_record();
     QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
-    bool progress_visible = progress_row && progress_bar && play_button && pause_button &&
+    bool progress_visible = progress_row && progress_slider && play_button && pause_button &&
                             stop_button && progress_row->isVisible() &&
-                            progress_bar->maximum() >= 1000;
+                            progress_slider->maximum() >= 1000;
 
     play_button->click();
     song_update(300);
     QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
-    bool progress_follows = song_is_playing() && progress_bar->value() >= 290 &&
-                            progress_bar->value() <= 350;
+    bool progress_follows = song_is_playing() && progress_slider->value() >= 290 &&
+                            progress_slider->value() <= 350;
+
+    // Dragging the slider seeks; the release handler starts playback at the
+    // requested position.
+    progress_slider->setValue(600);
+    QMetaObject::invokeMethod(&window, "onSeekReleased", Qt::DirectConnection);
+    QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
+    bool seek_ui_ok = song_is_playing() && song_get_timer() >= 590 &&
+                      song_get_timer() <= 610 && progress_slider->value() >= 590 &&
+                      progress_slider->value() <= 610;
+    std::printf("  [%s] dragging the progress slider seeks\n", seek_ui_ok ? "ok" : "FAIL");
+    if (!seek_ui_ok) ++failures;
 
     pause_button->click();
     QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
     bool pause_ui_ok = song_is_paused() && progress_row->isVisible() &&
-                       progress_bar->value() >= 290 && progress_bar->value() <= 350;
+                       progress_slider->value() >= 590 && progress_slider->value() <= 610 &&
+                       midi_any_note_active(60);
 
     play_button->click();
     QMetaObject::invokeMethod(&window, "tick", Qt::DirectConnection);
-    bool resume_ui_ok = song_is_playing() && progress_bar->value() >= 290 &&
-                        progress_bar->value() <= 350;
+    bool resume_ui_ok = song_is_playing() && progress_slider->value() >= 590 &&
+                        progress_slider->value() <= 610 && midi_any_note_active(60);
 
     stop_button->click();
     song_close();

@@ -38,6 +38,7 @@ class MainWindow : public QMainWindow {
   void tick();
   void onPlay();
   void onPause();
+  void onSeekReleased();
   void onRecord();
   void onStop();
   void onOpenSong();
@@ -81,9 +82,10 @@ class MainWindow : public QMainWindow {
   QLabel* status_label_ = nullptr;
 
   QWidget* progress_row_ = nullptr;
-  QProgressBar* progress_bar_ = nullptr;
+  QSlider* progress_slider_ = nullptr;
   QLabel* progress_elapsed_ = nullptr;
   QLabel* progress_total_ = nullptr;
+  bool seeking_ = false;
 
   QSpinBox* group_spin_ = nullptr;
   QSpinBox* key_sign_spin_ = nullptr;

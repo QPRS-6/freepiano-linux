@@ -28,7 +28,6 @@
 #include <QLabel>
 #include <QMenuBar>
 #include <QMessageBox>
-#include <QProgressBar>
 #include <QPushButton>
 #include <QResizeEvent>
 #include <QShowEvent>
@@ -227,15 +226,26 @@ void MainWindow::buildControls() {
   progress_elapsed_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
   progress_elapsed_->setFixedWidth(58);
 
-  progress_bar_ = new QProgressBar(progress_row_);
-  progress_bar_->setObjectName("songProgress");
-  progress_bar_->setTextVisible(false);
-  progress_bar_->setFixedHeight(12);
-  progress_bar_->setFocusPolicy(Qt::NoFocus);
-  progress_bar_->setToolTip(fp_tr("播放进度：当前时间 / 总时长", "Playback position: current / total"));
-  progress_bar_->setStyleSheet(
-      "QProgressBar{border:1px solid #303038;border-radius:4px;background:#15151a;}"
-      "QProgressBar::chunk{background:#ff9d2e;border-radius:3px;}");
+  progress_slider_ = new QSlider(Qt::Horizontal, progress_row_);
+  progress_slider_->setObjectName("songProgress");
+  progress_slider_->setRange(0, 1);
+  progress_slider_->setValue(0);
+  progress_slider_->setSingleStep(100);
+  progress_slider_->setPageStep(5000);
+  progress_slider_->setFixedHeight(20);
+  progress_slider_->setFocusPolicy(Qt::NoFocus);
+  progress_slider_->setToolTip(fp_tr("拖动调整播放位置", "Drag to seek"));
+  progress_slider_->setStyleSheet(
+      "QSlider::groove:horizontal{height:8px;border:1px solid #303038;border-radius:4px;"
+      "background:#15151a;}"
+      "QSlider::sub-page:horizontal{background:#ff9d2e;border-radius:3px;}"
+      "QSlider::handle:horizontal{width:14px;margin:-4px 0;border-radius:7px;"
+      "background:#f0f0f0;}");
+  connect(progress_slider_, &QSlider::sliderPressed, this, [this] { seeking_ = true; });
+  connect(progress_slider_, &QSlider::sliderMoved, this, [this](int value) {
+    if (progress_elapsed_) progress_elapsed_->setText(format_time(value));
+  });
+  connect(progress_slider_, &QSlider::sliderReleased, this, &MainWindow::onSeekReleased);
 
   progress_total_ = new QLabel("00:00.0", progress_row_);
   progress_total_->setStyleSheet("color:#9a9aa2;font-family:monospace;");
@@ -246,7 +256,7 @@ void MainWindow::buildControls() {
   progress_layout->addWidget(stop_button_);
   progress_layout->addSpacing(4);
   progress_layout->addWidget(progress_elapsed_);
-  progress_layout->addWidget(progress_bar_, 1);
+  progress_layout->addWidget(progress_slider_, 1);
   progress_layout->addWidget(progress_total_);
   layout->addWidget(progress_row_);
   progress_row_->setVisible(false);
@@ -491,9 +501,11 @@ void MainWindow::tick() {
       int position = (song_is_playing() || paused) ? (int)song_get_timer() : 0;
       if (length < 1) length = 1;
       position = std::clamp(position, 0, length);
-      progress_bar_->setRange(0, length);
-      progress_bar_->setValue(position);
-      progress_elapsed_->setText(format_time(position));
+      if (!seeking_) {
+        progress_slider_->setRange(0, length);
+        progress_slider_->setValue(position);
+        progress_elapsed_->setText(format_time(position));
+      }
       progress_total_->setText(format_time(length));
     }
   }
@@ -609,6 +621,12 @@ void MainWindow::onPlay() {
   }
   updateWindowTitle();
   setFocus();
+}
+
+void MainWindow::onSeekReleased() {
+  seeking_ = false;
+  if (progress_slider_) song_seek(progress_slider_->value());
+  tick();
 }
 
 void MainWindow::onPause() {

@@ -31,6 +31,8 @@ bool song_is_playing();
 void song_pause_playback();
 void song_resume_playback();
 bool song_is_paused();
+// Jump to a position (milliseconds) and continue playing from there.
+void song_seek(int milliseconds);
 
 bool song_allow_save();
 bool song_allow_input();
