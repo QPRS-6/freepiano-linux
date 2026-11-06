@@ -5,3 +5,4 @@ ref/
 *.o
 *.user
 *.tar.gz
+.mig/
