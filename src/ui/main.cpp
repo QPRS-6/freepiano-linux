@@ -849,6 +849,29 @@ int main(int argc, char** argv) {
                 progress_closed_hidden ? "ok" : "FAIL");
     if (!progress_closed_hidden) ++failures;
 
+    auto* new_group_action = window.findChild<QAction*>("newGroupCopyAction");
+    auto* group_spin = window.findChild<QSpinBox*>("groupSpin");
+    bool group_copy_ok = new_group_action && group_spin && new_group_action->isEnabled();
+    if (group_copy_ok) {
+      int before_count = (int)config_get_setting_group_count();
+      int source = (int)config_get_setting_group();
+      char old_key = config_get_key_signature();
+      config_set_key_signature(3);
+      new_group_action->trigger();
+      group_copy_ok = (int)config_get_setting_group_count() == before_count + 1 &&
+                      (int)config_get_setting_group() == before_count &&
+                      config_get_key_signature() == 3 &&
+                      group_spin->value() == before_count &&
+                      group_spin->maximum() == before_count;
+      config_set_setting_group_count((uint32_t)before_count);
+      config_set_setting_group((uint32_t)source);
+      config_set_key_signature(old_key);
+      window.syncControls();
+    }
+    std::printf("  [%s] new group copies the current settings\n",
+                group_copy_ok ? "ok" : "FAIL");
+    if (!group_copy_ok) ++failures;
+
     std::printf("%s (%d failure%s)\n", failures == 0 ? "UI TEST PASSED" : "UI TEST FAILED",
                 failures, failures == 1 ? "" : "s");
     engine_shutdown();

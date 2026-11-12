@@ -84,6 +84,9 @@ zlib(compressed_size)  ->  16-byte events {double time; u8 a,b,c,d;}
 * `key`（旧写法）= `keydown` + 自动 NoteOff；
 * `FreePiano <version>` 决定旧音符编号偏移（<1.7 时 -12）；
 * `GroupCount` 会清空所有分组（与原文一致）。
+* 「分组」菜单的「新建分组（复制当前）」调用 `config_add_setting_group_copy()`，
+  完整复制当前 `setting_t`（键位映射、标签、颜色、音色、通道等）并切换过去；
+  数量达到 `MAX_SETTING_GROUP` 时拒绝创建。
 
 移植重新实现了词法分析器，但返回值与副作用保持一致；`.map` 文本保存格式也兼容原版
 （`GroupCount`、`Group Set n`、各通道设置、`keydown`/`label`/`color` 行）。

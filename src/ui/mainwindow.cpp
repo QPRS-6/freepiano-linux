@@ -151,6 +151,7 @@ void MainWindow::buildControls() {
 
   bar->addWidget(control_label(fp_tr("分组", "Group"), central));
   group_spin_ = new QSpinBox(central);
+  group_spin_->setObjectName("groupSpin");
   group_spin_->setRange(0, 0);
   group_spin_->setFixedWidth(58);
   group_spin_->setFocusPolicy(Qt::NoFocus);
@@ -344,6 +345,12 @@ void MainWindow::buildMenus() {
   record_action_ = song_menu->addAction(fp_tr("录制 / 结束录制", "Record / stop recording"),
                                         QKeySequence("Ctrl+R"), this, &MainWindow::onRecord);
   stop_action_ = song_menu->addAction(fp_tr("停止", "Stop"), QKeySequence("Ctrl+."), this, &MainWindow::onStop);
+
+  QMenu* group_menu = menuBar()->addMenu(fp_tr("分组", "Group"));
+  new_group_action_ = group_menu->addAction(fp_tr("新建分组（复制当前）", "New group (copy current)"),
+                                            QKeySequence("Ctrl+Shift+N"), this,
+                                            &MainWindow::onNewGroupCopy);
+  new_group_action_->setObjectName("newGroupCopyAction");
 
   QMenu* keyboard = menuBar()->addMenu(fp_tr("键位", "Key map"));
   map_menu_ = keyboard->addMenu(fp_tr("键位映射", "Key maps"));
@@ -585,6 +592,9 @@ void MainWindow::tick() {
     play_action_->setEnabled(!song_is_empty() && !song_is_recording() && !song_is_playing());
   if (record_action_) record_action_->setEnabled(!song_is_playing());
   if (stop_action_) stop_action_->setEnabled(song_is_playing() || paused || song_is_recording());
+  if (new_group_action_)
+    new_group_action_->setEnabled((int)config_get_setting_group_count() < MAX_SETTING_GROUP &&
+                                  !song_is_playing() && !song_is_recording());
 
   keyboard_->update();
   piano_->update();
@@ -917,6 +927,29 @@ void MainWindow::onAbout() {
 void MainWindow::onGroupChanged(int value) {
   config_set_setting_group((uint32_t)std::max(0, value));
   keyboard_->update();
+  setFocus();
+}
+
+void MainWindow::onNewGroupCopy() {
+  if (song_is_playing() || song_is_recording()) {
+    statusBar()->showMessage(fp_tr("请先停止播放或录制", "Stop playback or recording first"), 3000);
+    return;
+  }
+  uint32_t source = config_get_setting_group();
+  int group = config_add_setting_group_copy(source);
+  if (group < 0) {
+    statusBar()->showMessage(fp_tr("分组数量已达上限", "Maximum number of groups reached"), 3000);
+    return;
+  }
+  config_set_setting_group((uint32_t)group);
+  syncControls();
+  updateStatusBar();
+  statusBar()->showMessage(
+      QString::fromUtf8(fp_tr("已新建分组 %1（复制自分组 %2）",
+                              "Created group %1 (copied from %2)"))
+          .arg(group)
+          .arg(source),
+      4000);
   setFocus();
 }
 

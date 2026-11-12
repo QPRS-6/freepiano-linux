@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(freepiano-linux VERSION 1.0.14 LANGUAGES CXX)
+project(freepiano-linux VERSION 1.0.15 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 

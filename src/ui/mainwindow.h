@@ -54,6 +54,7 @@ class MainWindow : public QMainWindow {
   void onSettings();
   void onAbout();
   void onGroupChanged(int value);
+  void onNewGroupCopy();
   void onKeySignatureChanged(int value);
   void onVelocityChanged();
   void onOctaveChanged();
@@ -92,6 +93,7 @@ class MainWindow : public QMainWindow {
   bool seeking_ = false;
 
   QSpinBox* group_spin_ = nullptr;
+  QAction* new_group_action_ = nullptr;
   QSpinBox* key_sign_spin_ = nullptr;
   QSpinBox* vel0_spin_ = nullptr;
   QSpinBox* vel1_spin_ = nullptr;

@@ -865,6 +865,16 @@ void config_insert_setting_group(uint32_t pos) {
   settings[pos].clear();
 }
 
+int config_add_setting_group_copy(uint32_t source) {
+  fp_lock lock;
+  if (source >= setting_count || setting_count >= settings.size()) return -1;
+  uint32_t id = setting_count;
+  settings[id] = settings[source];
+  setting_count = id + 1;
+  current_setting = id;
+  return (int)id;
+}
+
 void config_delete_setting_group(uint32_t id) {
   fp_lock lock;
   if (id >= setting_count) return;

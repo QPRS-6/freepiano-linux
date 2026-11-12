@@ -103,6 +103,7 @@ void config_set_controller(uint8_t channel, uint8_t id, uint8_t value);
 
 uint32_t config_get_setting_group();
 void config_set_setting_group(uint32_t id);
+int config_add_setting_group_copy(uint32_t source);
 void config_insert_setting_group(uint32_t pos);
 void config_delete_setting_group(uint32_t id);
 uint32_t config_get_setting_group_count();
